@@ -45,7 +45,7 @@ window.ChronoGame = window.ChronoGame || {};
     PLAYER_LEAD_X: 112,
     GRAVITY_UP: 0.6,
     GRAVITY_DOWN: 0.6,
-    VELOCITY_DAMPING: 0.93,
+    VELOCITY_DAMPING: 0.89,
     
 	PARENT_RADIUS: 12,
     TETHER_HORIZONTAL_GAP: 40,
@@ -54,7 +54,7 @@ window.ChronoGame = window.ChronoGame || {};
     MAX_VERTICAL_STRETCH: 190,
     ECHO_RADIUS: 10,
     SWEEP_HARVEST_RADIUS: 12,
-    BOOST_GRAVITY_MULTIPLIER: 1.75,
+    BOOST_GRAVITY_MULTIPLIER: 1.95,
     
 	STAMINA_MAX: 100,
     STAMINA_DRAIN_RATE: 0.85,
