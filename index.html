@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Chrono-Thread</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="game-stage">
+  <div id="ui">
+    <div id="score-row">
+      <div id="score" title="Tap 5x for Engine Inspector">0</div>
+    </div>
+    <div id="hud-row">
+      <div id="combo"></div>
+      <div id="lives"></div>
+    </div>
+    <div id="tier-banner"></div>
+  </div>
+
+  <div id="playtest-controls">
+    <button id="pause-toggle" class="hud-pill-btn" type="button" aria-label="Pause">||</button>
+  </div>
+
+  <div id="snap-btn">SURGE</div>
+
+  <!-- Mobile-First Game Over Overlay -->
+  <div id="gameover-overlay" class="hidden" aria-hidden="true">
+    <div class="gameover-card">
+      <div class="gameover-tag">CHRONO-THREAD</div>
+      <h1 class="gameover-title">THREAD SEVERED</h1>
+
+      <div class="hero-stat-box">
+        <div class="hero-stat-label">WALLS CLEARED</div>
+        <div id="go-walls" class="hero-stat-value">0</div>
+        <div id="go-best-badge" class="best-badge hidden">NEW RECORD</div>
+      </div>
+
+      <div class="secondary-stats-row">
+        <div class="sub-stat-box">
+          <div class="sub-stat-label">SCORE</div>
+          <div id="go-score" class="sub-stat-value">0</div>
+        </div>
+        <div class="sub-stat-box">
+          <div class="sub-stat-label">BEST WALLS</div>
+          <div id="go-best-walls" class="sub-stat-value">0</div>
+        </div>
+      </div>
+
+      <button id="restart-btn" type="button">PLAY AGAIN</button>
+    </div>
+  </div>
+
+  <canvas id="game"></canvas>
+</div>
+
+<aside id="engine-inspector" class="collapsed">
+  <div id="inspector-header">
+    <h3>Engine Inspector</h3>
+    <div class="inspector-header-right">
+      <span id="save-status">SAVED TO STORAGE</span>
+      <button id="close-inspector-btn" type="button" aria-label="Close Inspector">&times;</button>
+    </div>
+  </div>
+
+  <div id="top-debug-bar">
+    <button id="godmode-btn" class="top-debug-btn on" type="button">GOD MODE: ON</button>
+    <button id="disable-villains-btn" class="top-debug-btn" type="button">VILLAINS: ON</button>
+  </div>
+
+  <div id="sandbox-bar">
+    <div class="sandbox-title">
+      <span>Rift Isolation & Playtest</span>
+      <span>[R] = Spawn</span>
+    </div>
+    <select id="enemy-select">
+      <option value="ALL">ALL RIFTS (Progressive Static → Oscillating)</option>
+      <option value="pink_wall">1. Pink Wall (Single Gap)</option>
+      <option value="gate_node">2. Amber Key Node + Locked Gate</option>
+      <option value="mail_slot">3. Horizontal Mail-Slot Tunnel</option>
+      <option value="double_slit">4. Double-Slit Barrier Wall</option>
+      <option value="dual_target_gate">5. Dual Target Rectangles</option>
+      <option value="staggered_step">6. Staggered Step-Gates</option>
+      <option value="trail_missile">7. Tracking Energy Missile</option>
+      <option value="echo_pad_gate">8. Chromatic Phase-Shift Hex Pad</option>
+    </select>
+    <div class="sandbox-state-row">
+      <span class="state-label">Motion State:</span>
+      <select id="enemy-state-select">
+        <option value="AUTO">AUTO (Progression)</option>
+        <option value="static">STATIC</option>
+        <option value="oscillating">OSCILLATING</option>
+      </select>
+    </div>
+    <div class="sandbox-btn-row">
+      <button id="spawn-now-btn" class="sandbox-btn" type="button">Spawn Now [R]</button>
+      <button id="clear-field-btn" class="sandbox-btn secondary" type="button">Clear Field</button>
+    </div>
+  </div>
+
+  <div id="tuning-scroll"></div>
+
+  <div class="tuning-actions">
+    <button id="save-preset-btn" type="button">Save Preset</button>
+    <button id="copy-config-btn" type="button">Copy JSON</button>
+    <button id="import-config-btn" type="button">Paste JSON</button>
+    <button id="reset-tuning-btn" type="button">Reset Defaults</button>
+  </div>
+</aside>
+
+<!-- Classic scripts in dependency order so index.html runs directly via file:// -->
+<script src="js/config.js"></script>
+<script src="js/state.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/spawner.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/inspector.js"></script>
+<script src="js/input.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
