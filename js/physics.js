@@ -2,22 +2,27 @@
   const cfg = CG.GAME_CONFIG;
   const st = CG.state;
 
-  const OSC_CONFIG_MAP = {
-    pink_wall: { speed: 'PINK_WALL_OSC_SPEED', amp: 'PINK_WALL_OSC_AMP' },
-    node: { speed: 'GATE_NODE_OSC_SPEED', amp: 'GATE_NODE_OSC_AMP' },
-    mail_slot: { speed: 'MAIL_SLOT_OSC_SPEED', amp: 'MAIL_SLOT_OSC_AMP' },
-    double_slit: { speed: 'DOUBLE_SLIT_OSC_SPEED', amp: 'DOUBLE_SLIT_OSC_AMP' },
-    dual_target_gate: { speed: 'DUAL_RECT_OSC_SPEED', amp: 'DUAL_RECT_OSC_AMP' },
-    staggered_step: { speed: 'STAGGERED_OSC_SPEED', amp: 'STAGGERED_OSC_AMP' },
-    trail_missile: { speed: 'MISSILE_OSC_SPEED', amp: 'MISSILE_OSC_AMP' },
-    echo_pad_gate: { speed: 'ECHO_PAD_OSC_SPEED', amp: 'ECHO_PAD_OSC_AMP' }
+  const OSC_MULT_MAP = {
+    pink_wall: { speedMult: 'PINK_WALL_OSC_SPEED_MULT', ampMult: 'PINK_WALL_OSC_AMP_MULT' },
+    node: { speedMult: 'GATE_NODE_OSC_SPEED_MULT', ampMult: 'GATE_NODE_OSC_AMP_MULT' },
+    mail_slot: { speedMult: 'MAIL_SLOT_OSC_SPEED_MULT', ampMult: 'MAIL_SLOT_OSC_AMP_MULT' },
+    double_slit: { speedMult: 'DOUBLE_SLIT_OSC_SPEED_MULT', ampMult: 'DOUBLE_SLIT_OSC_AMP_MULT' },
+    dual_target_gate: { speedMult: 'DUAL_RECT_OSC_SPEED_MULT', ampMult: 'DUAL_RECT_OSC_AMP_MULT' },
+    staggered_step: { speedMult: 'STAGGERED_OSC_SPEED_MULT', ampMult: 'STAGGERED_OSC_AMP_MULT' },
+    trail_missile: { speedMult: 'MISSILE_OSC_SPEED_MULT', ampMult: 'MISSILE_OSC_AMP_MULT' },
+    echo_pad_gate: { speedMult: 'ECHO_PAD_OSC_SPEED_MULT', ampMult: 'ECHO_PAD_OSC_AMP_MULT' }
   };
 
   function getOscParams(kind) {
-    const entry = OSC_CONFIG_MAP[kind];
-    const speed = (entry && cfg[entry.speed] !== undefined) ? cfg[entry.speed] : cfg.OSCILLATE_SPEED;
-    const amp = (entry && cfg[entry.amp] !== undefined) ? cfg[entry.amp] : cfg.OSCILLATE_AMPLITUDE;
-    return { speed, amp };
+    const entry = OSC_MULT_MAP[kind];
+    const parentSpeed = cfg.GLOBAL_OSC_SPEED ?? 0.75;
+    const parentAmp = cfg.GLOBAL_OSC_AMP ?? 68;
+    const sMult = (entry && cfg[entry.speedMult] !== undefined) ? cfg[entry.speedMult] : 1.0;
+    const aMult = (entry && cfg[entry.ampMult] !== undefined) ? cfg[entry.ampMult] : 1.0;
+    return {
+      speed: parentSpeed * sMult,
+      amp: parentAmp * aMult
+    };
   }
 
   function getRosterHex(colorKey) {
@@ -88,9 +93,6 @@
     return t0 <= t1;
   };
 
-  // Universal player contact check: Lead Core, Echo Twin, and the Phase Tether.
-  // When Surge is active (surgeMerge -> 1), echoX & echoY collapse directly into (leadX, y),
-  // naturally collapsing both the Echo Twin and Phase Tether hitboxes inside the Lead Core.
   CG.checkUniversalTouchWithRect = function (rx, ry, rw, rh) {
     if (rw <= 0 || rh <= 0) return false;
     const p = st.player;
@@ -122,21 +124,32 @@
     return st.combo >= cfg.MAX_COMBO;
   };
 
+  CG.isPlayerOvercharged = function () {
+    return Boolean(st.isMaxLifeExcited);
+  };
+
   CG.getPlayerColor = function () {
-    return CG.isFullCombo() ? cfg.PLAYER_FULL_COMBO_COLOR : cfg.PLAYER_DEFAULT_COLOR;
+    return CG.isPlayerOvercharged()
+      ? (cfg.PLAYER_OVERCHARGE_COLOR || cfg.COLORS.VILLAIN_AMBER)
+      : cfg.PLAYER_DEFAULT_COLOR;
   };
 
   CG.incrementObstaclesPassed = function () {
     st.obstaclesPassed++;
+    st.speedProgressWalls++;
     const earnedPoints = cfg.POINTS_PER_OBSTACLE * CG.getEffectiveChain();
     st.chainScore += earnedPoints;
     CG.addFloatingText(
       st.player.leadX + 14,
       st.player.y - 22,
       `+${earnedPoints}`,
-      st.doubleChainFrames > 0 ? cfg.COLORS.FEEDBACK_BOOST : cfg.COLORS.FEEDBACK_POSITIVE
+      st.doubleChainFrames > 0 ? cfg.COLORS.FEEDBACK_BOOST : cfg.COLORS.FEEDBACK_POSITIVE,
+      true
     );
-    CG.checkTierAnnouncement();
+	
+	if (st.showDebugText) {
+		CG.checkTierAnnouncement();
+	}
     CG.updateUI();
   };
 
@@ -175,10 +188,17 @@
       CG.createBurst(st.player.echoX, st.player.echoY, alertCol, 14);
     }
 
+    // Reset speed back to BASE_SPEED on life lost and increment normally from there
+    st.speedProgressWalls = 0;
+    st.speed = cfg.BASE_SPEED;
+
+    // Failure / Reset condition: clear combo, overcharge fill, and excited state
     st.combo = 1;
+    st.comboPopFrames = 0;
     st.doubleChainFrames = 0;
     st.activePhaseShield = null;
     st.isMaxLifeExcited = false;
+    st.replenishBarPoints = 0;
 
     if (st.godmodeEnabled) {
       st.lives--;
@@ -190,7 +210,7 @@
         st.staminaLockoutFrames = 0;
         CG.addFloatingText(hitX, hitY - 26, 'GODMODE: THREAD RESTORED', cfg.COLORS.VILLAIN_AMBER);
       } else {
-        CG.addFloatingText(hitX, hitY - 26, 'THREAD HIT (-1 LIFE)', alertCol);
+        CG.addFloatingText(hitX, hitY - 26, 'THREAD HIT (SPEED RESET)', alertCol);
       }
       CG.updateUI();
       return;
@@ -199,7 +219,7 @@
     st.lives--;
     st.damagedLifeIndex = Math.max(0, st.lives);
     st.damagedLifeTimer = 28;
-    CG.addFloatingText(hitX, hitY - 26, 'THREAD HIT (-1 LIFE)', alertCol);
+    CG.addFloatingText(hitX, hitY - 26, 'THREAD HIT (SPEED RESET)', alertCol);
     CG.updateUI();
 
     if (st.lives <= 0) {
@@ -208,17 +228,36 @@
   };
 
   CG.addReplenishBarPoints = function (amount, x, y) {
-    st.replenishBarPoints += amount;
-    while (true) {
-      const isFullLives = st.lives >= cfg.MAX_LIVES;
-      const threshold = Math.max(1, isFullLives ? cfg.MAX_LIFE_BONUS_BAR_MAX : cfg.LIFE_BAR_MAX);
-      if (st.replenishBarPoints < threshold) break;
+    const wasAllFull = st.lives >= cfg.MAX_LIVES;
+    if (wasAllFull && amount > 0) {
+      st.diamondPopFrames = 14;
+    }
 
-      st.replenishBarPoints -= threshold;
-      if (!isFullLives) {
+    if (!wasAllFull) {
+      st.replenishBarPoints += amount;
+      while (st.lives < cfg.MAX_LIVES) {
+        const threshold = Math.max(1, cfg.LIFE_BAR_MAX);
+        if (st.replenishBarPoints < threshold) break;
+        st.replenishBarPoints -= threshold;
         st.lives++;
         CG.addFloatingText(x, y - 26, '+1 CORE LIFE', cfg.COLORS.FEEDBACK_BOOST);
-      } else {
+      }
+      // If a prism overflowed into full lives, carry remainder into the max-life overcharge bar
+      if (st.lives >= cfg.MAX_LIVES && st.replenishBarPoints > 0) {
+        const overchargeThreshold = Math.max(1, cfg.MAX_LIFE_BONUS_BAR_MAX);
+        if (st.replenishBarPoints >= overchargeThreshold) {
+          st.replenishBarPoints = overchargeThreshold;
+          if (!st.isMaxLifeExcited) {
+            st.isMaxLifeExcited = true;
+            st.chainScore += cfg.MAX_LIFE_BAR_BONUS;
+            CG.addFloatingText(x, y - 26, `+${cfg.MAX_LIFE_BAR_BONUS} OVERCHARGE`, cfg.COLORS.VILLAIN_AMBER);
+          }
+        }
+      }
+    } else {
+      const overchargeThreshold = Math.max(1, cfg.MAX_LIFE_BONUS_BAR_MAX);
+      st.replenishBarPoints = Math.min(overchargeThreshold, st.replenishBarPoints + amount);
+      if (st.replenishBarPoints >= overchargeThreshold) {
         st.chainScore += cfg.MAX_LIFE_BAR_BONUS;
         st.isMaxLifeExcited = true;
         CG.addFloatingText(x, y - 26, `+${cfg.MAX_LIFE_BAR_BONUS} OVERCHARGE`, cfg.COLORS.VILLAIN_AMBER);
@@ -245,6 +284,8 @@
     const cols = cfg.COLORS;
 
     if (st.damageFlashFrames > 0) st.damageFlashFrames--;
+    if (st.diamondPopFrames > 0) st.diamondPopFrames--;
+    if (st.comboPopFrames > 0) st.comboPopFrames--;
     if (st.damagedLifeTimer > 0) {
       st.damagedLifeTimer--;
       if (st.damagedLifeTimer === 0) {
@@ -270,20 +311,28 @@
     }
     if (st.doubleChainFrames > 0) {
       st.doubleChainFrames--;
-      if (st.doubleChainFrames % 30 === 0 || st.doubleChainFrames === 0) {
+      if (st.doubleChainFrames === 0) {
         CG.updateUI();
       }
     }
 
-    st.speed = Math.min(
+    // Calculate baseline wall-scaled speed, then apply timed Prism dampener during 2X Overdrive
+    const rawWallSpeed = Math.min(
       cfg.MAX_SPEED,
-      cfg.BASE_SPEED + st.obstaclesPassed * cfg.SPEED_SCALING_FACTOR
+      cfg.BASE_SPEED + st.speedProgressWalls * cfg.SPEED_SCALING_FACTOR
     );
+    const prismDampen = st.doubleChainFrames > 0 ? (cfg.PRISM_SPEED_DAMPEN_FACTOR ?? 0.78) : 1.0;
+    st.speed = Math.max(cfg.BASE_SPEED * 0.75, rawWallSpeed * prismDampen);
 
     let effectiveGravityUp = cfg.GRAVITY_UP;
     let effectiveGravityDown = cfg.GRAVITY_DOWN;
     let isSurging = false;
 
+    if (st.infiniteSurge) {
+      st.echoStamina = cfg.STAMINA_MAX;
+      st.staminaLockoutFrames = 0;
+    }
+	
     if (st.staminaLockoutFrames > 0) {
       st.staminaLockoutFrames--;
       if (st.staminaLockoutFrames === 0) {
@@ -309,10 +358,12 @@
       st.echoStamina = Math.min(cfg.STAMINA_MAX, st.echoStamina + cfg.STAMINA_RECOVERY_RATE);
     }
 
-    // Smoothly fuse Echo Twin into Lead Core when Surge is active
     const targetMerge = isSurging ? 1 : 0;
-    const mergeRate = isSurging ? 0.24 : 0.16;
+    const mergeRate = isSurging
+      ? (cfg.SURGE_SNAP_IN_RATE ?? 0.24)
+      : (cfg.SURGE_SNAP_OUT_RATE ?? 0.16);
     st.surgeMerge += (targetMerge - st.surgeMerge) * mergeRate;
+
     if (st.surgeMerge > 0.992) st.surgeMerge = 1;
     if (st.surgeMerge < 0.008) st.surgeMerge = 0;
 
@@ -325,7 +376,6 @@
     if (player.y < 20) { player.y = 20; player.vy = 0; }
     if (player.y > height - 20) { player.y = height - 20; player.vy = 0; }
 
-    // Record Lead Core motion trail for high-speed smear effect
     player.leadTrail.push({ x: player.leadX, y: player.y, vy: player.vy });
     if (player.leadTrail.length > 8) player.leadTrail.shift();
 
@@ -335,7 +385,6 @@
     }
     const autoEchoY = player.history[0];
 
-    // Maintain underlying unmerged Echo Twin Y so separation after Surge is seamless
     player.unmergedEchoY += (autoEchoY - player.unmergedEchoY) * cfg.ECHO_RETURN_BLEND;
     const maxStretch = cfg.MAX_VERTICAL_STRETCH;
     player.unmergedEchoY = Math.max(
@@ -346,7 +395,6 @@
     const unmergedEchoX = player.leadX - cfg.TETHER_HORIZONTAL_GAP;
     st.previousEcho = { x: player.echoX, y: player.echoY };
 
-    // Converge Echo Twin position directly into Lead Core based on surgeMerge
     player.echoX = unmergedEchoX + (player.leadX - unmergedEchoX) * st.surgeMerge;
     player.echoY = player.unmergedEchoY + (player.y - player.unmergedEchoY) * st.surgeMerge;
 
@@ -361,7 +409,6 @@
       CG.queuePattern(false);
     }
 
-    // Keep single spaced-out white orbs flowing between villains (unblocked by missile cooldowns)
     if (typeof CG.maintainInterVillainOrbs === 'function') {
       CG.maintainInterVillainOrbs();
     }
@@ -378,7 +425,6 @@
     for (let i = st.obstacles.length - 1; i >= 0; i--) {
       const obs = st.obstacles[i];
 
-      // Horizontal movement
       if (obs.kind === 'trail_missile') {
         if (obs.state === 'locking') {
           obs.lockTimer--;
@@ -410,7 +456,6 @@
         if (obs.gateX !== undefined) obs.gateX -= st.speed;
       }
 
-      // Apply Oscillating state per rift
       if (obs.kind === 'pink_wall' || obs.kind === 'mail_slot') {
         if (obs.motionState === 'oscillating') {
           const halfGap = obs.gapSize * 0.5;
@@ -515,7 +560,6 @@
           const echoKeyHit = CG.checkUniversalTouchWithRect(obs.echoRectX, echoYPos - obs.h / 2, obs.w, obs.h);
           const leadKeyHit = CG.checkUniversalTouchWithRect(obs.leadRectX, leadYPos - obs.h / 2, obs.w, obs.h);
 
-          // Latch Echo rectangle once hit by Lead Core, Echo Twin, or Phase Tether, and snap its wall tether
           if (echoKeyHit && !obs.echoHit) {
             obs.echoHit = true;
             CG.createBurst(obs.echoRectX + obs.w / 2, echoYPos, cols.FEEDBACK_POSITIVE, 14);
@@ -525,7 +569,6 @@
             }
           }
 
-          // Latch Lead rectangle once hit by Lead Core, Echo Twin, or Phase Tether, and snap its wall tether
           if (leadKeyHit && !obs.leadHit) {
             obs.leadHit = true;
             CG.createBurst(obs.leadRectX + obs.w / 2, leadYPos, cols.FEEDBACK_POSITIVE, 14);
@@ -535,7 +578,6 @@
             }
           }
 
-          // Destroy wall once both targets have been triggered (sequentially or simultaneously)
           if (obs.echoHit && obs.leadHit) {
             obs.unlocked = true;
             st.shakeTime = 7;
@@ -647,7 +689,8 @@
             CG.createBurst(obs.x, obs.y, cols.COLLECTIBLE_DIAMOND_OUTER, 26);
             CG.createBurst(obs.x, obs.y, cols.COLLECTIBLE_DIAMOND_INNER, 14);
             st.doubleChainFrames = Math.round(cfg.DIAMOND_DOUBLE_CHAIN_SECONDS * 60);
-            CG.addFloatingText(obs.x, obs.y - 14, `PRISM! 2X OVERDRIVE +${cfg.DIAMOND_BAR_VALUE}`, cols.COLLECTIBLE_DIAMOND_OUTER);
+            st.comboPopFrames = 14;
+            CG.addFloatingText(obs.x, obs.y - 14, `PRISM! 2X + SLOW +${cfg.DIAMOND_BAR_VALUE}`, cols.COLLECTIBLE_DIAMOND_OUTER);
             CG.addReplenishBarPoints(cfg.DIAMOND_BAR_VALUE, obs.x, obs.y);
           }
         }
@@ -676,19 +719,28 @@
             }
 
             const wasFull = CG.isFullCombo();
+            const prevCombo = st.combo;
             st.combo = Math.min(cfg.MAX_COMBO, st.combo + 1);
+            if (st.combo !== prevCombo) {
+              st.comboPopFrames = 12;
+            }
             if (!wasFull && CG.isFullCombo()) {
-              CG.addFloatingText(player.leadX, player.y - 36, 'MAX SYNC!', cfg.PLAYER_FULL_COMBO_COLOR);
+              st.comboPopFrames = 18;
+              CG.addFloatingText(player.leadX, player.y - 36, 'MAX SYNC!', cols.VILLAIN_AMBER);
             }
             CG.addReplenishBarPoints(cfg.YELLOW_ORB_BAR_VALUE, obs.x, obs.y);
           } else if (obs.x + obs.r < player.echoX && !obs.missed) {
             obs.missed = true;
-            // Never reset st.replenishBarPoints when a white orb is missed; only reset Sync combo
             if (st.combo > 1) {
               CG.addFloatingText(player.echoX, player.echoY - 16, 'SYNC LOST!', cols.FEEDBACK_ALERT);
             }
+            // Reset sync combo, apply a -1 penalty to orb progress, and exit overcharge if no longer full
             st.combo = 1;
-            st.isMaxLifeExcited = false;
+            st.comboPopFrames = 0;
+            st.replenishBarPoints = Math.max(0, st.replenishBarPoints - 1);
+            if (st.replenishBarPoints < cfg.MAX_LIFE_BONUS_BAR_MAX) {
+              st.isMaxLifeExcited = false;
+            }
             CG.updateUI();
           }
         }

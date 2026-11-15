@@ -23,26 +23,31 @@
   CG.updateUI = function () {
     dom.scoreEl.textContent = st.obstaclesPassed;
 
+    // Diegetic In-World Sync Multiplier (visible only from 2x upward, formatted as "2x"..."10x"..."20x")
     const effectiveChain = CG.getEffectiveChain();
-    dom.comboEl.classList.remove('boosted', 'maxed');
-    if (st.doubleChainFrames > 0) {
-      const secsLeft = Math.ceil(st.doubleChainFrames / 60);
-      dom.comboEl.textContent = `SYNC x${effectiveChain} (2X ${secsLeft}s)`;
-      dom.comboEl.classList.add(CG.isFullCombo() ? 'maxed' : 'boosted');
-      dom.comboEl.style.transform = 'scale(1.08)';
-    } else if (st.combo > 1) {
-      dom.comboEl.textContent = CG.isFullCombo() ? `MAX SYNC x${st.combo}` : `SYNC x${st.combo}`;
-      if (CG.isFullCombo()) dom.comboEl.classList.add('maxed');
-      dom.comboEl.style.transform = 'scale(1.04)';
+    dom.comboEl.classList.remove('visible', 'tier-mid', 'tier-high', 'maxed');
+    if (effectiveChain >= 2) {
+      dom.comboEl.textContent = `${effectiveChain}x`;
+      dom.comboEl.classList.add('visible');
+      if (CG.isFullCombo()) {
+        dom.comboEl.classList.add('maxed');
+      } else if (effectiveChain >= 5) {
+        dom.comboEl.classList.add('tier-high');
+      } else {
+        dom.comboEl.classList.add('tier-mid');
+      }
     } else {
       dom.comboEl.textContent = '';
-      dom.comboEl.style.transform = 'scale(1)';
+      dom.comboEl.style.transform = 'translate3d(0px, 0px, 0) scale(0.85)';
     }
 
-    const playerColor = CG.getPlayerColor();
+    // Lives Diamonds: decoupled from combo colors; displays white health + internal yellow overcharge bar
     const isAllFull = st.lives >= cfg.MAX_LIVES;
-    const activeThreshold = Math.max(1, isAllFull ? cfg.MAX_LIFE_BONUS_BAR_MAX : cfg.LIFE_BAR_MAX);
-    const fillPercent = Math.min(100, Math.max(0, (st.replenishBarPoints / activeThreshold) * 100));
+    const overchargeMax = Math.max(1, cfg.MAX_LIFE_BONUS_BAR_MAX);
+    const overchargePercent = st.isMaxLifeExcited
+      ? 100
+      : Math.min(100, Math.max(0, (st.replenishBarPoints / overchargeMax) * 100));
+    const healthFillPercent = Math.min(100, Math.max(0, (st.replenishBarPoints / Math.max(1, cfg.LIFE_BAR_MAX)) * 100));
 
     dom.livesEl.innerHTML = '';
     for (let i = 0; i < cfg.MAX_LIVES; i++) {
@@ -56,28 +61,31 @@
 
       if (isAllFull) {
         cls += ' active';
-        node.style.setProperty('--player-color', playerColor);
-        node.style.setProperty('--player-glow', playerColor);
+        fillInner.style.setProperty('--fill-pct', '100%');
 
         if (st.isMaxLifeExcited) {
           cls += ' excited';
-          fillInner.style.setProperty('--fill-pct', '100%');
         } else if (st.replenishBarPoints > 0) {
-          cls += ' overflow-gold';
-          fillInner.style.setProperty('--fill-pct', `${fillPercent}%`);
-        } else {
-          fillInner.style.setProperty('--fill-pct', '100%');
-          fillInner.style.setProperty('--fill-color', playerColor);
+          cls += ' overcharging';
         }
+        if (st.diamondPopFrames > 0) {
+          cls += ' overcharge-pop';
+        }
+
+        // Second internal bottom-to-top yellow overcharge bar inside each full health diamond
+        const overWrap = document.createElement('div');
+        overWrap.className = 'life-node-overcharge-fill';
+        const overInner = document.createElement('div');
+        overInner.className = 'life-node-overcharge-inner';
+        overInner.style.setProperty('--overcharge-pct', `${overchargePercent}%`);
+        overInner.style.setProperty('--overcharge-edge-opacity', (overchargePercent > 0 && overchargePercent < 100) ? '0.9' : '0');
+        overWrap.appendChild(overInner);
+        node.appendChild(overWrap);
       } else if (i < st.lives) {
         cls += ' active';
-        node.style.setProperty('--player-color', playerColor);
-        node.style.setProperty('--player-glow', playerColor);
         fillInner.style.setProperty('--fill-pct', '100%');
-        fillInner.style.setProperty('--fill-color', playerColor);
       } else if (i === st.lives) {
-        fillInner.style.setProperty('--fill-pct', `${fillPercent}%`);
-        fillInner.style.setProperty('--fill-color', playerColor);
+        fillInner.style.setProperty('--fill-pct', `${healthFillPercent}%`);
         if (i === st.damagedLifeIndex && st.damagedLifeTimer > 0) {
           cls += ' damaged';
         }
@@ -102,12 +110,15 @@
     }
 
     st.obstaclesPassed = 0;
+    st.speedProgressWalls = 0;
     st.chainScore = 0;
     st.combo = 1;
+    st.comboPopFrames = 0;
     st.doubleChainFrames = 0;
     st.lives = Math.min(cfg.INITIAL_LIVES, cfg.MAX_LIVES);
     st.replenishBarPoints = 0;
     st.isMaxLifeExcited = false;
+    st.diamondPopFrames = 0;
     st.echoStamina = cfg.STAMINA_MAX;
     st.staminaLockoutFrames = 0;
     st.surgeMerge = 0;
@@ -118,7 +129,11 @@
     st.activePhaseShield = null;
     CG.scheduleNextDiamond();
     st.speed = cfg.BASE_SPEED;
-    if (st.isPaused) CG.setPaused(false);
+    if (st.isPaused && typeof CG.setPaused === 'function') {
+      CG.setPaused(false);
+    } else {
+      st.isPaused = false;
+    }
     CG.clearAllInputs();
     dom.tierBannerEl.classList.remove('visible');
     st.frame = 0;
@@ -158,8 +173,6 @@
 
   window.addEventListener('resize', CG.resize);
   CG.resize();
-  CG.buildTuningUI();
-  CG.bindInspectorEvents();
   CG.bindInputs();
   CG.resetGame();
   loop();

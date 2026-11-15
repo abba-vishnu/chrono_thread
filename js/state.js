@@ -15,36 +15,25 @@
     livesEl: document.getElementById('lives'),
     tierBannerEl: document.getElementById('tier-banner'),
     snapBtn: document.getElementById('snap-btn'),
-    pauseToggleBtn: document.getElementById('pause-toggle'),
     gameoverOverlay: document.getElementById('gameover-overlay'),
     goWallsEl: document.getElementById('go-walls'),
     goScoreEl: document.getElementById('go-score'),
     goBestWallsEl: document.getElementById('go-best-walls'),
     goBestBadgeEl: document.getElementById('go-best-badge'),
-    restartBtn: document.getElementById('restart-btn'),
-    engineInspector: document.getElementById('engine-inspector'),
-    closeInspectorBtn: document.getElementById('close-inspector-btn'),
-    godmodeBtn: document.getElementById('godmode-btn'),
-    disableVillainsBtn: document.getElementById('disable-villains-btn'),
-    enemySelect: document.getElementById('enemy-select'),
-    enemyStateSelect: document.getElementById('enemy-state-select'),
-    spawnNowBtn: document.getElementById('spawn-now-btn'),
-    clearFieldBtn: document.getElementById('clear-field-btn'),
-    tuningScroll: document.getElementById('tuning-scroll'),
-    savePresetBtn: document.getElementById('save-preset-btn'),
-    saveStatusEl: document.getElementById('save-status'),
-    copyConfigBtn: document.getElementById('copy-config-btn'),
-    importConfigBtn: document.getElementById('import-config-btn'),
-    resetTuningBtn: document.getElementById('reset-tuning-btn')
+    restartBtn: document.getElementById('restart-btn')
   };
 
   CG.state = {
     width: 450,
     height: 800,
 
-    godmodeEnabled: true,
-    disableVillains: false,
+    // Optional debug/playtest hooks (controlled by js/debug.js if loaded)
+    godmodeEnabled: false,
+	infiniteSurge: false,    
+	disableVillains: false,
+	
     showGizmos: false,
+    showDebugText: false,
     isPaused: false,
     isolatedEnemyType: 'ALL',
     isolatedEnemyState: 'AUTO',
@@ -54,15 +43,18 @@
     hitStopFrames: 0,
     damagedLifeIndex: -1,
     damagedLifeTimer: 0,
+    diamondPopFrames: 0,
 
     previousEcho: { x: 0, y: 0 },
     gameOver: false,
     gameOverTimestamp: 0,
 
     obstaclesPassed: 0,
+    speedProgressWalls: 0,
     bestWallsCleared: savedBestWalls,
     chainScore: 0,
     combo: 1,
+    comboPopFrames: 0,
     doubleChainFrames: 0,
     lives: cfg.INITIAL_LIVES,
     replenishBarPoints: 0,
@@ -71,7 +63,7 @@
 
     echoStamina: cfg.STAMINA_MAX,
     staminaLockoutFrames: 0,
-    surgeMerge: 0, // 0 = Echo Twin separated, 1 = Echo Twin merged inside Lead Core
+    surgeMerge: 0,
 
     speed: cfg.BASE_SPEED,
     frame: 0,

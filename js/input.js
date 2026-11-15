@@ -45,24 +45,6 @@
   CG.bindInputs = function () {
     window.addEventListener('keydown', (e) => {
       if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
-
-      if (e.code === 'KeyP' || e.code === 'Escape') {
-        if (!st.gameOver && !e.repeat) {
-          e.preventDefault();
-          CG.setPaused(!st.isPaused);
-        }
-        return;
-      }
-      if (e.code === 'KeyE' && !e.repeat) {
-        e.preventDefault();
-        CG.toggleInspector();
-        return;
-      }
-      if (e.code === 'KeyR' && !e.repeat) {
-        e.preventDefault();
-        CG.triggerImmediateSandboxSpawn();
-        return;
-      }
       if (st.isPaused) return;
 
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {

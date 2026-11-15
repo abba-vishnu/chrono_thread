@@ -19,7 +19,7 @@
     'trail_missile'
   ]);
 
-  let pendingInterVillainOrb = false;
+  let pendingInterVillainOrbsRemaining = 0;
   let lastOrbX = -Infinity;
   let lastOrbY = null;
 
@@ -89,7 +89,7 @@
     return false;
   };
 
-  function hasNearbyFreeOrb(targetX, minSep = 135) {
+  function hasNearbyFreeOrb(targetX, minSep = 120) {
     for (let i = 0; i < st.obstacles.length; i++) {
       const obs = st.obstacles[i];
       if (obs.kind === 'node' && obs.id === null && !obs.sliced) {
@@ -123,18 +123,24 @@
     return false;
   }
 
-  // Spawns a single, cleanly spaced white orb (never tight pairs)
-  CG.spawnSingleWhiteOrb = function (orbX, preferredY, minXAfterPrevious = 135) {
+  function rollWhiteOrbBatchCount() {
+    const minC = Math.max(0, Math.round(cfg.WHITE_ORB_MIN_COUNT ?? 1));
+    const maxC = Math.max(minC, Math.round(cfg.WHITE_ORB_MAX_COUNT ?? 2));
+    return minC + Math.floor(Math.random() * (maxC - minC + 1));
+  }
+
+  CG.spawnSingleWhiteOrb = function (orbX, preferredY, minXAfterPrevious = 115) {
     const height = st.height;
     const minY = 64;
     const maxY = height - 64;
 
+    const wallPad = Math.round((cfg.WHITE_ORB_WALL_CLEARANCE ?? 100) * 0.65);
     if (hasNearbyFreeOrb(orbX, minXAfterPrevious)) return false;
-    if (isOrbPositionInsideHazard(orbX, preferredY, 32)) return false;
+    if (isOrbPositionInsideHazard(orbX, preferredY, wallPad)) return false;
 
     let clampedY = Math.max(minY, Math.min(maxY, preferredY));
     if (lastOrbY !== null && Math.abs(orbX - lastOrbX) < 240) {
-      const maxDeltaY = 125;
+      const maxDeltaY = 120;
       clampedY = Math.max(
         minY,
         Math.min(maxY, Math.max(lastOrbY - maxDeltaY, Math.min(lastOrbY + maxDeltaY, clampedY)))
@@ -157,41 +163,48 @@
 
     lastOrbX = orbX;
     lastOrbY = clampedY;
-    pendingInterVillainOrb = false;
     return true;
   };
 
-  // Called every frame from physics.js to maintain high-intensity spaced white orbs between villains,
-  // independent of missile lock cooldowns.
   CG.maintainInterVillainOrbs = function () {
+    const maxAllowed = Math.max(0, Math.round(cfg.WHITE_ORB_MAX_COUNT ?? 2));
+    if (maxAllowed <= 0) {
+      pendingInterVillainOrbsRemaining = 0;
+      return;
+    }
+
     const width = st.width;
     const height = st.height;
     const rightmostHazard = CG.getRightmostHazardEdge();
 
-    // If a villain recently spawned and we haven't placed its follow-up orb yet, place one in its wake
-    if (pendingInterVillainOrb) {
-      const candidateX = Math.max(width + 45, rightmostHazard + 85);
-      if (candidateX <= width + 185) {
+    if (pendingInterVillainOrbsRemaining > 0) {
+      const candidateX = Math.max(width + 45, rightmostHazard + 82);
+      if (candidateX <= width + 220) {
         const guideY = lastOrbY !== null
-          ? (lastOrbY * 0.5 + height * 0.5)
+          ? (lastOrbY * 0.55 + height * (0.28 + Math.random() * 0.44) * 0.45)
           : height * (0.32 + Math.random() * 0.36);
-        CG.spawnSingleWhiteOrb(candidateX, guideY, 135);
+        if (CG.spawnSingleWhiteOrb(candidateX, guideY, 110)) {
+          pendingInterVillainOrbsRemaining--;
+        }
       }
     }
 
-    // In open corridors between villains (including during or after missile locks), keep single spaced orbs flowing
-    const minOrbSpacing = Math.max(145, Math.round(st.speed * 34));
+    let activeFreeOrbsAhead = 0;
     let rightmostFreeOrbX = -Infinity;
     for (let i = 0; i < st.obstacles.length; i++) {
       const obs = st.obstacles[i];
-      if (obs.kind === 'node' && obs.id === null && !obs.sliced) {
+      if (obs.kind === 'node' && obs.id === null && !obs.sliced && obs.x > st.player.echoX) {
+        activeFreeOrbsAhead++;
         if (obs.x > rightmostFreeOrbX) rightmostFreeOrbX = obs.x;
       }
     }
 
+    const wallClearance = cfg.WHITE_ORB_WALL_CLEARANCE ?? 100;
+    const minOrbSpacing = Math.max(135, Math.round(st.speed * 32));
     const canPlaceOpenOrb =
-      rightmostFreeOrbX < width - minOrbSpacing + 60 &&
-      (rightmostHazard < width - 70 || rightmostHazard === -Infinity);
+      activeFreeOrbsAhead < maxAllowed &&
+      rightmostFreeOrbX < width - minOrbSpacing + 55 &&
+      (rightmostHazard < (width + 55 - wallClearance) || rightmostHazard === -Infinity);
 
     if (canPlaceOpenOrb) {
       const spawnX = width + 55;
@@ -207,27 +220,28 @@
     const edgePad = 34;
     let halfSpan = 40;
     let oscAmp = 0;
+    const parentAmp = cfg.GLOBAL_OSC_AMP ?? 68;
 
     if (villain === 'pink_wall') {
       halfSpan = cfg.PINK_WALL_GAP * 0.5;
-      oscAmp = motionState === 'oscillating' ? (cfg.PINK_WALL_OSC_AMP ?? cfg.OSCILLATE_AMPLITUDE) : 0;
+      oscAmp = motionState === 'oscillating' ? parentAmp * (cfg.PINK_WALL_OSC_AMP_MULT ?? 1) : 0;
     } else if (villain === 'mail_slot') {
       halfSpan = cfg.MAIL_SLOT_GAP * 0.5;
-      oscAmp = motionState === 'oscillating' ? (cfg.MAIL_SLOT_OSC_AMP ?? cfg.OSCILLATE_AMPLITUDE) : 0;
+      oscAmp = motionState === 'oscillating' ? parentAmp * (cfg.MAIL_SLOT_OSC_AMP_MULT ?? 1) : 0;
     } else if (villain === 'double_slit') {
       halfSpan = cfg.DOUBLE_SLIT_GAP + cfg.DOUBLE_SLIT_DIVIDER * 0.5;
-      oscAmp = motionState === 'oscillating' ? (cfg.DOUBLE_SLIT_OSC_AMP ?? cfg.OSCILLATE_AMPLITUDE) : 0;
+      oscAmp = motionState === 'oscillating' ? parentAmp * (cfg.DOUBLE_SLIT_OSC_AMP_MULT ?? 1) : 0;
     } else if (villain === 'dual_target_gate') {
       halfSpan = cfg.DUAL_MAX_OFFSET + cfg.DUAL_RECT_HEIGHT * 0.5;
-      oscAmp = motionState === 'oscillating' ? (cfg.DUAL_RECT_OSC_AMP ?? cfg.OSCILLATE_AMPLITUDE) : 0;
+      oscAmp = motionState === 'oscillating' ? parentAmp * (cfg.DUAL_RECT_OSC_AMP_MULT ?? 1) : 0;
     } else if (villain === 'gate_node') {
       halfSpan = 28;
-      oscAmp = motionState === 'oscillating' ? (cfg.GATE_NODE_OSC_AMP ?? cfg.OSCILLATE_AMPLITUDE) : 0;
+      oscAmp = motionState === 'oscillating' ? parentAmp * (cfg.GATE_NODE_OSC_AMP_MULT ?? 1) : 0;
     } else if (villain === 'echo_pad_gate') {
       const maxC = Math.max(cfg.ECHO_PAD_MIN_COUNT, cfg.ECHO_PAD_MAX_COUNT);
       const padSpacing = cfg.ECHO_PAD_RADIUS * 2 + cfg.ECHO_PAD_VERTICAL_PADDING;
       halfSpan = ((maxC - 1) * padSpacing) * 0.5 + cfg.ECHO_PAD_RADIUS;
-      oscAmp = motionState === 'oscillating' ? (cfg.ECHO_PAD_OSC_AMP ?? cfg.OSCILLATE_AMPLITUDE) : 0;
+      oscAmp = motionState === 'oscillating' ? parentAmp * (cfg.ECHO_PAD_OSC_AMP_MULT ?? 1) : 0;
     }
 
     const totalMargin = Math.min(height * 0.42, edgePad + halfSpan + oscAmp * 0.5);
@@ -237,7 +251,6 @@
   function pickProgressiveVillainAndState(unlockedCount) {
     const availableStages = CG.PROGRESSION_STAGES.slice(0, unlockedCount);
 
-    // 1. Guarantee first-time showcase of newly unlocked stages
     for (let i = 0; i < availableStages.length; i++) {
       const stage = availableStages[i];
       const key = `${stage.villain}:${stage.state}`;
@@ -252,49 +265,41 @@
     const secondLastVillain = secondLastKey.split(':')[0] || '';
     const complexGateActive = CG.hasActiveComplexGateAhead();
 
-    // Count recent occurrences to apply dynamic anti-hogging decay
     const recentCounts = {};
     for (let i = 0; i < st.recentSpawnHistory.length; i++) {
       const v = st.recentSpawnHistory[i].split(':')[0];
       recentCounts[v] = (recentCounts[v] || 0) + 1;
     }
 
-    // Taper basic pink_wall slightly as advanced mechanics unlock so late-game stays dynamic
     const progressionFactor = Math.max(0, (unlockedCount - 4) / Math.max(1, CG.PROGRESSION_STAGES.length - 4));
 
     const candidates = availableStages.map((stage, idx) => {
       let baseW = Math.max(0, cfg[WEIGHT_KEY_MAP[stage.villain]] || 1);
       if (baseW <= 0) return { villain: stage.villain, motionState: stage.state, weight: 0 };
 
-      // Avoid unfair missile ambushes while threading slow multi-part gates
       if (stage.villain === 'trail_missile' && complexGateActive) {
         return { villain: stage.villain, motionState: stage.state, weight: 0 };
       }
 
-      // Taper early static/oscillating pink walls in late game
       if (stage.villain === 'pink_wall') {
         baseW *= (1 - progressionFactor * 0.52);
       }
 
-      // Boost the 2 most recently unlocked phases so new mechanics stay visible
       if (idx >= unlockedCount - 2 && unlockedCount > 2) {
         baseW *= 1.85;
       }
 
-      // Decay weight if this villain already appeared in recent history
       const seenRecently = recentCounts[stage.villain] || 0;
       if (seenRecently > 0) {
         baseW /= (1 + seenRecently * 1.6);
       }
 
-      // Hard anti-repeat penalty for immediate back-to-back villain
       if (stage.villain === lastVillain) {
         baseW *= 0.08;
       } else if (stage.villain === secondLastVillain) {
         baseW *= 0.45;
       }
 
-      // Rhythm pacing: avoid chaining two heavy puzzle/missile rifts back-to-back
       if (HEAVY_PUZZLE_TYPES.has(lastVillain) && HEAVY_PUZZLE_TYPES.has(stage.villain)) {
         baseW *= 0.25;
       }
@@ -324,8 +329,7 @@
     if (!instantSpawn) {
       if (CG.hasLockingMissile()) return;
 
-      // Distance-based tail clearance check so wide multi-part gates never overlap
-      const minClearance = cfg.MIN_RIFT_CLEARANCE_PX ?? 260;
+      const minClearance = cfg.MIN_RIFT_CLEARANCE_PX ?? 270;
       const rightmostEdge = CG.getRightmostHazardEdge();
       if (rightmostEdge > st.width - minClearance) {
         return;
@@ -382,7 +386,8 @@
     } else if (chosen === 'staggered_step') {
       const goUp = Math.random() > 0.5;
       const offset = cfg.STAGGERED_STEP_OFFSET;
-      const oscAmp = motionState === 'oscillating' ? (cfg.STAGGERED_OSC_AMP ?? cfg.OSCILLATE_AMPLITUDE) : 0;
+      const parentAmp = cfg.GLOBAL_OSC_AMP ?? 68;
+      const oscAmp = motionState === 'oscillating' ? parentAmp * (cfg.STAGGERED_OSC_AMP_MULT ?? 1) : 0;
       const safeMargin = cfg.STAGGERED_STEP_GAP * 0.5 + oscAmp * 0.5 + 34;
       const midY = height * (0.42 + Math.random() * 0.16);
       const frontY = goUp
@@ -419,6 +424,7 @@
     const height = st.height;
     const motionState = tel.motionState || 'static';
     const startPhase = Math.random() * Math.PI * 2;
+    const orbClearance = cfg.WHITE_ORB_WALL_CLEARANCE ?? 100;
     let exitOrbX = null;
     let exitOrbY = tel.y;
 
@@ -450,7 +456,7 @@
         unlocked: false,
         passed: false
       });
-      exitOrbX = gateX + 95;
+      exitOrbX = gateX + orbClearance;
       exitOrbY = nodeY;
 
     } else if (tel.type === 'pink_wall') {
@@ -468,7 +474,7 @@
         gapBottom: gapCenter + gapSize / 2,
         passed: false
       });
-      exitOrbX = width + 60 + 24 + 90;
+      exitOrbX = width + 60 + 24 + orbClearance;
       exitOrbY = motionState === 'oscillating' ? (gapCenter + height * 0.5) * 0.5 : gapCenter;
 
     } else if (tel.type === 'mail_slot') {
@@ -487,7 +493,7 @@
         gapBottom: slotCenter + gapSize / 2,
         passed: false
       });
-      exitOrbX = width + 60 + tunnelWidth + 90;
+      exitOrbX = width + 60 + tunnelWidth + orbClearance;
       exitOrbY = motionState === 'oscillating' ? (slotCenter + height * 0.5) * 0.5 : slotCenter;
 
     } else if (tel.type === 'double_slit') {
@@ -512,7 +518,7 @@
         passed: false
       });
       const exitY = Math.random() > 0.5 ? dividerTop - gapSize * 0.5 : dividerBottom + gapSize * 0.5;
-      exitOrbX = width + 60 + 26 + 90;
+      exitOrbX = width + 60 + 26 + orbClearance;
       exitOrbY = motionState === 'oscillating' ? (exitY + height * 0.5) * 0.5 : exitY;
 
     } else if (tel.type === 'special_diamond') {
@@ -552,7 +558,7 @@
         passed: false
       });
 
-      exitOrbX = gateX + 24 + 90;
+      exitOrbX = gateX + 24 + orbClearance;
       exitOrbY = tel.y;
 
     } else if (tel.type === 'staggered_step') {
@@ -579,7 +585,7 @@
         rearGapBottom: tel.y2 + gapSize / 2,
         passed: false
       });
-      exitOrbX = rearX + 22 + 90;
+      exitOrbX = rearX + 22 + orbClearance;
       exitOrbY = tel.y2;
 
     } else if (tel.type === 'trail_missile') {
@@ -597,12 +603,15 @@
         trail: [],
         passed: false
       });
-      // Queue a safe follow-up single white orb away from the missile's lock Y
-      const safeOrbY = st.player.y > height * 0.5
-        ? Math.max(78, st.player.y - 135)
-        : Math.min(height - 78, st.player.y + 135);
-      pendingInterVillainOrb = true;
-      CG.spawnSingleWhiteOrb(width + 115, safeOrbY, 130);
+
+      const batchTarget = rollWhiteOrbBatchCount();
+      if (batchTarget > 0) {
+        const safeOrbY = st.player.y > height * 0.5
+          ? Math.max(78, st.player.y - 135)
+          : Math.min(height - 78, st.player.y + 135);
+        const placed = CG.spawnSingleWhiteOrb(width + 115, safeOrbY, 115);
+        pendingInterVillainOrbsRemaining = Math.max(0, batchTarget - (placed ? 1 : 0));
+      }
       return;
 
     } else if (tel.type === 'echo_pad_gate') {
@@ -659,14 +668,19 @@
         damagedPlayer: false,
         passed: false
       });
-      exitOrbX = gateX + cfg.PHASE_GATE_WIDTH + 90;
+      exitOrbX = gateX + cfg.PHASE_GATE_WIDTH + orbClearance;
       exitOrbY = clampedSpawnY;
     }
 
-    // Spawn a single, well-spaced white orb in the recovery corridor after every villain
-    pendingInterVillainOrb = true;
-    if (exitOrbX !== null) {
-      CG.spawnSingleWhiteOrb(exitOrbX, exitOrbY, 135);
+    const batchTarget = rollWhiteOrbBatchCount();
+    if (batchTarget > 0) {
+      let placed = false;
+      if (exitOrbX !== null) {
+        placed = CG.spawnSingleWhiteOrb(exitOrbX, exitOrbY, 115);
+      }
+      pendingInterVillainOrbsRemaining = Math.max(0, batchTarget - (placed ? 1 : 0));
+    } else {
+      pendingInterVillainOrbsRemaining = 0;
     }
   };
 })(window.ChronoGame);

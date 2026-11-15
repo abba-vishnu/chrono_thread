@@ -11,7 +11,9 @@
     }
   };
 
-  CG.addFloatingText = function (x, y, text, color) {
+  // Extra descriptive callouts only spawn when Debug Text is enabled; score popups always spawn
+  CG.addFloatingText = function (x, y, text, color, isScore = false) {
+    if (!isScore && !st.showDebugText) return;
     st.floatingTexts.push({ x, y, text, color, life: 1, vy: -1.15 });
   };
 
@@ -137,11 +139,36 @@
     ctx.restore();
   }
 
+  // Continuously drive diegetic combo scale & max-sync vibration every frame
+  function syncWorldComboAnimation() {
+    const comboEl = CG.dom.comboEl;
+    if (!comboEl) return;
+
+    const effectiveChain = CG.getEffectiveChain();
+    if (effectiveChain <= 1) return;
+
+    const popBoost = st.comboPopFrames > 0 ? (st.comboPopFrames / 14) * 0.22 : 0;
+    const isMaxed = CG.isFullCombo();
+
+    if (isMaxed && !st.gameOver && !st.isPaused) {
+      const shiverX = (Math.random() - 0.5) * 4.4;
+      const shiverY = (Math.random() - 0.5) * 4.4;
+      const shiverRot = (Math.random() - 0.5) * 2.2;
+      const pulseScale = 1.04 + Math.sin(st.frame * 0.35) * 0.035 + popBoost;
+      comboEl.style.transform = `translate3d(${shiverX.toFixed(2)}px, ${shiverY.toFixed(2)}px, 0) rotate(${shiverRot.toFixed(2)}deg) scale(${pulseScale.toFixed(3)})`;
+    } else {
+      const baseScale = 1 + popBoost;
+      comboEl.style.transform = `translate3d(0px, 0px, 0) scale(${baseScale.toFixed(3)})`;
+    }
+  }
+
   CG.draw = function () {
     const width = st.width;
     const height = st.height;
     const player = st.player;
     const cols = cfg.COLORS;
+
+    syncWorldComboAnimation();
 
     ctx.save();
     if (!st.gameOver && !st.isPaused && st.shakeTime > 0) {
@@ -156,6 +183,7 @@
     const leadY = player.y;
     const echoY = player.echoY;
     const merge = st.surgeMerge || 0;
+    const isOvercharged = CG.isPlayerOvercharged();
 
     st.telegraphs.forEach(tel => {
       const alpha = Math.sin((1 - tel.timer / Math.max(1, cfg.TELEGRAPH_FRAMES)) * Math.PI);
@@ -195,7 +223,6 @@
         const echoYPos = obs.y - obs.offset;
         const leadYPos = obs.y + obs.offset;
 
-        // Individual tethers from each target rectangle to the gate wall (broken once its rectangle triggers)
         ctx.save();
         ctx.strokeStyle = hexToRgba(cols.VILLAIN_SECONDARY, 0.65);
         ctx.shadowColor = cols.VILLAIN_SECONDARY;
@@ -313,7 +340,6 @@
           ctx.fillRect(obs.gateX, 0, obs.gateW, height);
           ctx.strokeRect(obs.gateX, 0, obs.gateW, height);
 
-          // Draw tether anchor nodes on the gate wall while intact
           if (!obs.echoHit) {
             ctx.beginPath();
             ctx.arc(obs.gateX, echoYPos, 4, 0, Math.PI * 2);
@@ -465,11 +491,13 @@
     });
     ctx.shadowBlur = 0;
 
-    // Background Chrono Grid
+    // Background Grid (warms slightly to golden hue during Overcharge)
     ctx.save();
     ctx.lineWidth = 1;
     const gridOffset = (st.frame * st.speed * 0.35) % 48;
-    ctx.strokeStyle = hexToRgba(cols.VILLAIN_SECONDARY, 0.075);
+    ctx.strokeStyle = isOvercharged
+      ? hexToRgba(cols.VILLAIN_AMBER, 0.085)
+      : hexToRgba(cols.VILLAIN_SECONDARY, 0.075);
     for (let x = -48 + gridOffset; x < width + 48; x += 48) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
     }
@@ -484,79 +512,107 @@
     const isSurging = (CG.isBoostRequested() && staminaRatio > 0 && !isLockedOut) || merge > 0.12;
     const activeShieldHex = st.activePhaseShield ? getRosterHex(st.activePhaseShield) : null;
 
-    // Unified core palette: shifts to Surge cyan across Lead Core, Echo Twin, and trails during Surge
+    // Priority: Phase Shield > Surge Overheat Alert > Surge Boost > Golden Overcharge > White Default
     const unifiedCoreColor = activeShieldHex || (isLockedOut ? cols.FEEDBACK_ALERT : (isSurging ? cols.FEEDBACK_BOOST : playerColor));
 
-    // 1. Wave History Trail (collapses into Lead Core as merge -> 1, and shifts color during Surge)
+    // Golden Overcharge Aura Halo around Lead Core
+    if (isOvercharged && !activeShieldHex && !isLockedOut) {
+      ctx.save();
+      const goldHex = cfg.PLAYER_OVERCHARGE_COLOR || cols.VILLAIN_AMBER;
+      const auraPulse = 1 + Math.sin(st.frame * 0.16) * 0.16;
+      const auraR = player.radius * (st.isMaxLifeExcited ? 2.45 : 1.95) * auraPulse;
+      const grad = ctx.createRadialGradient(player.leadX, leadY, player.radius * 0.4, player.leadX, leadY, auraR);
+      grad.addColorStop(0, hexToRgba(goldHex, st.isMaxLifeExcited ? 0.42 : 0.28));
+      grad.addColorStop(0.65, hexToRgba(goldHex, 0.12));
+      grad.addColorStop(1, hexToRgba(goldHex, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(player.leadX, leadY, auraR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Configurable Curved Trail Dots bridging Echo -> Lead Core
     if (player.history.length > 1 && merge < 0.98) {
       ctx.save();
-      ctx.strokeStyle = unifiedCoreColor;
-      ctx.globalAlpha = (isLockedOut ? 0.14 : (isSurging ? 0.45 : 0.24)) * (1 - merge);
-      ctx.lineWidth = isSurging ? 3 : 2;
-      ctx.beginPath();
+      const dotCount   = 24;   // Total number of trail dots
+      const startScale = 1.0; // Dot size multiplier at Lead Core end (t = 1)
+      const midScale   = 0.4; // Dot size multiplier at the middle pinch (t = 0.5)
+      const endScale   = 0.8; // Dot size multiplier at Echo end (t = 0)
+
       const len = player.history.length;
       const autoEchoY = player.history[0];
       const echoOffset = player.unmergedEchoY - autoEchoY;
       const unmergedEchoX = player.leadX - cfg.TETHER_HORIZONTAL_GAP;
-      for (let i = 0; i < len; i++) {
-        const t = i / (len - 1);
+      const trailColor = isLockedOut ? cols.FEEDBACK_ALERT : unifiedCoreColor;
+
+      const baseAlpha = isLockedOut
+        ? (0.35 + Math.sin(st.frame * 0.8) * 0.25)
+        : (isSurging ? 0.62 : (isOvercharged ? 0.52 : 0.42));
+
+      for (let d = dotCount - 2; d >= 1; d--) {
+        const t = d / (dotCount - 1); // 1 = Lead Core, 0 = Echo
+
+        // Smoothly sample player.history at fractional index
+        const exactIdx = t * (len - 1);
+        const i0 = Math.floor(exactIdx);
+        const i1 = Math.min(len - 1, i0 + 1);
+        const frac = exactIdx - i0;
+        const sampledHistY = player.history[i0] + (player.history[i1] - player.history[i0]) * frac;
+
         const rawHx = unmergedEchoX + (player.leadX - unmergedEchoX) * t;
-        const bend = (1 - t) * (1 - t);
-        const rawHy = player.history[i] + echoOffset * bend;
-        const hx = rawHx + (player.leadX - rawHx) * merge;
-        const hy = rawHy + (leadY - rawHy) * merge;
-        if (i === 0) ctx.moveTo(hx, hy);
-        else ctx.lineTo(hx, hy);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
+        const bend = 1 - t;
+        const rawHy = sampledHistY + echoOffset * bend;
 
-    // 2. Phase Tether connecting Echo Twin to Lead Core (shortens & fuses during Surge)
-    if (merge < 0.98) {
-      ctx.save();
-      ctx.lineCap = 'round';
-      if (isLockedOut || staminaRatio < 0.25) {
-        ctx.strokeStyle = cols.FEEDBACK_ALERT;
-        ctx.globalAlpha = (0.55 + Math.sin(st.frame * 0.9) * 0.35) * (1 - merge);
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(player.echoX, echoY);
-        const midX = (player.echoX + player.leadX) * 0.5;
-        const midY = (echoY + leadY) * 0.5 + (Math.random() - 0.5) * 16;
-        ctx.lineTo(midX, midY);
-        ctx.lineTo(player.leadX, leadY);
-        ctx.stroke();
-      } else {
-        ctx.strokeStyle = unifiedCoreColor;
-        ctx.globalAlpha = (0.4 + staminaRatio * 0.6) * (1 - merge * 0.65);
-        ctx.lineWidth = (1.6 + staminaRatio * 2.0) * (1 + merge * 0.4);
-        ctx.beginPath();
-        ctx.moveTo(player.echoX, echoY);
-        ctx.lineTo(player.leadX, leadY);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
+        const x = rawHx + (player.leadX - rawHx) * merge;
+        const y = rawHy + (leadY - rawHy) * merge;
 
-    // 3. Echo Twin Ghost & Orb (pulled into Lead Core and absorbed when Surge is active)
-    if (merge < 0.98) {
-      ctx.save();
-      const echoDistMoved = Math.hypot(player.echoX - st.previousEcho.x, echoY - st.previousEcho.y);
-      if (echoDistMoved > 2.5) {
-        ctx.fillStyle = hexToRgba(unifiedCoreColor, 0.32 * (1 - merge));
+        // Smooth U-curve scale: endScale (t=0) -> midScale (t=0.5) -> startScale (t=1)
+        let sizeMult;
+        if (t >= 0.5) {
+          const u = (t - 0.5) * 2; // 0 at middle, 1 at Lead Core
+          sizeMult = midScale + (startScale - midScale) * (u * u);
+        } else {
+          const u = (0.5 - t) * 2; // 0 at middle, 1 at Echo
+          sizeMult = midScale + (endScale - midScale) * (u * u);
+        }
+
+        const distFromMid = Math.abs(t - 0.5) * 2;
+        const dotR = player.radius * sizeMult;
+
+        // 1. Outer glow dot
+        ctx.fillStyle = trailColor;
+        ctx.globalAlpha = baseAlpha * (0.45 + 0.55 * distFromMid) * (1 - merge * 0.85);
         ctx.beginPath();
-        ctx.arc(st.previousEcho.x, st.previousEcho.y, player.radiusEcho * 0.8 * (1 - merge * 0.5), 0, Math.PI * 2);
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Bright inner core dot
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = (baseAlpha * 0.55) * (0.45 + 0.55 * distFromMid) * (1 - merge * 0.85);
+        ctx.beginPath();
+        ctx.arc(x, y, dotR * 0.42, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.restore();
+    }
+
+    // Echo Orb (anchored at the tail end of the curved trail)
+    if (merge < 0.98) {
+      ctx.save();
+      //const echoDistMoved = Math.hypot(player.echoX - st.previousEcho.x, echoY - st.previousEcho.y);
+      //if (echoDistMoved > 2.5) {
+      // ctx.fillStyle = hexToRgba(unifiedCoreColor, 0.35 * (1 - merge));
+      //  ctx.beginPath();
+      //  ctx.arc(st.previousEcho.x, st.previousEcho.y, player.radiusEcho * 0.85 * (1 - merge * 0.5), 0, Math.PI * 2);
+      //  ctx.fill();
+      //}
 
       ctx.fillStyle = unifiedCoreColor;
       ctx.globalAlpha = Math.max(0, 1 - merge * 0.95);
-      if (activeShieldHex || isSurging) {
-        ctx.shadowColor = unifiedCoreColor;
-        ctx.shadowBlur = 16;
-      }
-      const baseEchoR = isLockedOut ? player.radiusEcho * 0.8 : player.radiusEcho * (0.68 + staminaRatio * 0.32);
+      ctx.shadowColor = unifiedCoreColor;
+      ctx.shadowBlur = (activeShieldHex || isSurging || isOvercharged) ? 16 : 8;
+      const baseEchoR = isLockedOut ? player.radiusEcho * 0.8 : player.radiusEcho * (0.72 + staminaRatio * 0.28);
       const dynamicEchoR = Math.max(0.5, baseEchoR * (1 - merge * 0.88));
       ctx.beginPath();
       ctx.arc(player.echoX, echoY, dynamicEchoR, 0, Math.PI * 2);
@@ -564,45 +620,77 @@
       ctx.restore();
     }
 
-    // 4. Lead Core High-Speed Motion Smear (shows vertical/speed surge on Lead Core)
-    if (player.leadTrail && player.leadTrail.length > 1) {
-      const speedMag = Math.abs(player.vy);
-      if (isSurging || speedMag > 2.2) {
-        ctx.save();
-        const trailLen = player.leadTrail.length;
-        for (let i = 0; i < trailLen - 1; i++) {
-          const pt = player.leadTrail[i];
-          const progress = (i + 1) / trailLen;
-          // Offset backward slightly in X so horizontal + vertical velocity creates a sleek comet smear
-          const smearX = pt.x - (trailLen - 1 - i) * (isSurging ? 3.2 : 1.6);
-          const smearR = player.radius * (0.35 + progress * 0.58) * (1 + merge * 0.14);
+    // Independent Configurable Long Surge Trail for Main Orb (Lead Core)
+    const targetGrow = isSurging ? 1 : 0;
+    const growSpeed = isSurging ? 0.08 : 0.14; // Lower = slower, more visible telescoping (0.08 ≈ 0.4s)
+    st.surgeTrailGrow = (st.surgeTrailGrow || 0) + (targetGrow - (st.surgeTrailGrow || 0)) * growSpeed;
+    if (st.surgeTrailGrow < 0.01) st.surgeTrailGrow = 0;
+    if (st.surgeTrailGrow > 0.995) st.surgeTrailGrow = 1;
+
+    if (st.surgeTrailGrow > 0) {
+      ctx.save();
+
+      // --- LIVE CONFIG KNOBS ---
+      const maxTrailLength   = cfg.SURGE_TRAIL_LENGTH ?? 120;
+      const surgeTrailLength = maxTrailLength * st.surgeTrailGrow; // Telescopes from 0px -> maxTrailLength
+      const surgeDotCount    = Math.max(2, Math.round(cfg.SURGE_TRAIL_DOT_COUNT ?? 32));
+      const surgeStartScale  = cfg.SURGE_TRAIL_START_SCALE ?? 0.95;
+      const surgeEndScale    = cfg.SURGE_TRAIL_END_SCALE ?? 0.15;
+      const surgeMaxAlpha    = (cfg.SURGE_TRAIL_MAX_ALPHA ?? 0.7) * Math.min(1, st.surgeTrailGrow * 2.5);
+      // -------------------------
+
+      const maxSamples = Math.max(2, Math.round(cfg.SURGE_TRAIL_HISTORY ?? 20));
+
+      // Seed buffer with current leadY on first frame so the trail emerges smoothly out of the orb
+      if (!player.surgeWakeY || player.surgeWakeY.length === 0) {
+        player.surgeWakeY = Array(maxSamples).fill(leadY);
+      } else if (!st.isPaused && !st.gameOver) {
+        player.surgeWakeY.push(leadY);
+        while (player.surgeWakeY.length > maxSamples) {
+          player.surgeWakeY.shift();
+        }
+      }
+
+      const wakeLen = player.surgeWakeY.length;
+      if (wakeLen > 1) {
+        for (let i = surgeDotCount - 1; i >= 1; i--) {
+          const t = i / (surgeDotCount - 1); // 0 = Main Orb, 1 = Far Tail Tip
+          const fade = 1 - t;
+
+          // Only sample the portion of Y-history matching the currently grown length
+          const activeHistSpan = (wakeLen - 1) * st.surgeTrailGrow;
+          const histOffset = t * activeHistSpan;
+          const idxFromEnd = (wakeLen - 1) - histOffset;
+          const i0 = Math.max(0, Math.floor(idxFromEnd));
+          const i1 = Math.min(wakeLen - 1, i0 + 1);
+          const frac = idxFromEnd - i0;
+          const wakeY = player.surgeWakeY[i0] + (player.surgeWakeY[i1] - player.surgeWakeY[i0]) * frac;
+
+          const wakeX = player.leadX - (t * surgeTrailLength);
+          const sizeMult = surgeEndScale + (surgeStartScale - surgeEndScale) * (fade * fade);
+          const dotR = (player.radius * (1 + merge * 0.16)) * sizeMult;
+
+          // 1. Outer colored glow dot
           ctx.fillStyle = unifiedCoreColor;
-          ctx.globalAlpha = progress * progress * (isSurging ? 0.36 : 0.18);
+          ctx.globalAlpha = surgeMaxAlpha * (fade * fade);
           ctx.beginPath();
-          ctx.arc(smearX, pt.y, smearR, 0, Math.PI * 2);
+          ctx.arc(wakeX, wakeY, dotR, 0, Math.PI * 2);
+          ctx.fill();
+
+          // 2. Bright white inner core dot
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = (surgeMaxAlpha * 0.65) * (fade * fade);
+          ctx.beginPath();
+          ctx.arc(wakeX, wakeY, dotR * 0.45, 0, Math.PI * 2);
           ctx.fill();
         }
-
-        // Directional velocity capsule smear directly behind Lead Core
-        if (isSurging && speedMag > 0.8) {
-          const stretchY = Math.max(-26, Math.min(26, -player.vy * 2.4));
-          const stretchX = -14;
-          const grad = ctx.createLinearGradient(player.leadX, leadY, player.leadX + stretchX, leadY + stretchY);
-          grad.addColorStop(0, hexToRgba(unifiedCoreColor, 0.55));
-          grad.addColorStop(1, hexToRgba(unifiedCoreColor, 0));
-          ctx.strokeStyle = grad;
-          ctx.lineCap = 'round';
-          ctx.lineWidth = player.radius * 1.65;
-          ctx.beginPath();
-          ctx.moveTo(player.leadX, leadY);
-          ctx.lineTo(player.leadX + stretchX, leadY + stretchY);
-          ctx.stroke();
-        }
-        ctx.restore();
       }
+      ctx.restore();
+    } else if (player.surgeWakeY && player.surgeWakeY.length > 0 && !st.isPaused) {
+      player.surgeWakeY.length = 0;
     }
 
-    // 5. Front-Balanced Half-Circle Stamina Arc mounted ahead of the Lead Core
+    // Front Stamina Arc
     ctx.save();
     const frontArcR = player.radius + 6.5;
     if (isLockedOut) {
@@ -616,7 +704,6 @@
       ctx.arc(player.leadX, leadY, frontArcR + 1, -Math.PI * 0.5, Math.PI * 0.5);
       ctx.stroke();
     } else if (staminaRatio < 0.999 || isSurging) {
-      // Dim half-circle track balanced in front (+X nose) of Lead Core
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
       ctx.lineWidth = 2.4;
       ctx.lineCap = 'round';
@@ -624,7 +711,6 @@
       ctx.arc(player.leadX, leadY, frontArcR, -Math.PI * 0.5, Math.PI * 0.5);
       ctx.stroke();
 
-      // Active stamina arc symmetrically balanced around 0 rad (front tip)
       const halfSpan = (Math.PI * 0.5) * staminaRatio;
       const arcColor = staminaRatio > 0.3 ? cols.FEEDBACK_BOOST : cols.VILLAIN_AMBER;
       ctx.strokeStyle = arcColor;
@@ -638,19 +724,18 @@
     }
     ctx.restore();
 
-    // 6. Lead Core (absorbs Echo Twin & radiates Surge aura)
+    // Lead Core
     ctx.save();
     const isRising = player.vy < -0.3;
     const effectiveLeadR = player.radius * (1 + merge * 0.16);
     ctx.fillStyle = unifiedCoreColor;
     ctx.shadowColor = unifiedCoreColor;
-    ctx.shadowBlur = isSurging || isRising ? 18 : 6;
+    ctx.shadowBlur = (isSurging || isRising || isOvercharged) ? 18 : 6;
     ctx.beginPath();
     ctx.arc(player.leadX, leadY, effectiveLeadR, 0, Math.PI * 2);
     ctx.fill();
 
-    // Inner fused core spark when Surge is active or rising
-    if (isSurging || isRising) {
+    if (isSurging || isRising || isOvercharged) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.beginPath();
       ctx.arc(player.leadX + 2, leadY + (isRising ? -1.5 : 0), effectiveLeadR * (0.42 + merge * 0.15), 0, Math.PI * 2);
@@ -658,56 +743,9 @@
     }
     ctx.restore();
 
-    if (st.showGizmos) {
-      ctx.save();
-      ctx.strokeStyle = cols.FEEDBACK_POSITIVE;
-      ctx.lineWidth = 1.8;
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.moveTo(player.echoX, echoY);
-      ctx.lineTo(player.leadX, leadY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = hexToRgba(cols.FEEDBACK_POSITIVE, 0.22);
-      ctx.beginPath();
-      ctx.arc(player.leadX, leadY, player.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      if (merge < 0.96) {
-        const effectiveEchoR = player.radiusEcho * (1 - merge * 0.85);
-        ctx.beginPath();
-        ctx.arc(player.echoX, echoY, effectiveEchoR, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      st.obstacles.forEach(obs => {
-        if (obs.kind === 'echo_pad_gate') {
-          ctx.strokeStyle = hexToRgba(cols.FEEDBACK_POSITIVE, 0.55);
-          ctx.setLineDash([3, 3]);
-          for (let k = 0; k < obs.keys.length; k++) {
-            const key = obs.keys[k];
-            if (key.collected) continue;
-            ctx.beginPath();
-            ctx.arc(obs.x, obs.currentCenterY + key.offsetY, obs.padR + 2, 0, Math.PI * 2);
-            ctx.stroke();
-          }
-          ctx.setLineDash([]);
-        } else if (obs.kind === 'dual_target_gate' && !obs.unlocked) {
-          ctx.strokeStyle = hexToRgba(cols.VILLAIN_AMBER, 0.55);
-          ctx.beginPath();
-          ctx.moveTo(obs.echoRectX - 10, obs.y);
-          ctx.lineTo(obs.leadRectX + obs.w + 10, obs.y);
-          ctx.stroke();
-        } else if (obs.kind === 'staggered_step') {
-          ctx.fillStyle = cols.FEEDBACK_POSITIVE;
-          ctx.font = 'bold 11px monospace';
-          ctx.fillText(`ΔX: ${Math.round(obs.rearX - obs.x)}px`, obs.x, Math.min(obs.frontGapTop, obs.rearGapTop) - 6);
-        }
-      });
-      ctx.restore();
+    // Optional post-render hook for standalone js/debug.js gizmos
+    if (typeof CG.drawDebugOverlay === 'function') {
+      CG.drawDebugOverlay(ctx);
     }
 
     st.particles.forEach(p => {
@@ -719,7 +757,6 @@
     });
     ctx.globalAlpha = 1;
 
-    // Larger, high-contrast floating callouts for mobile readability
     st.floatingTexts.forEach(ft => {
       ctx.save();
       ctx.font = '900 15px "Segoe UI", system-ui, sans-serif';
