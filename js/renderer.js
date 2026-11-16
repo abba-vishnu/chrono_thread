@@ -138,7 +138,35 @@
     ctx.fill();
     ctx.restore();
   }
+  
+  // Common renderer for all shatter-able walls
+  function drawShatterWall(x, w, height, hexColor, isUnlocked) {
+    ctx.save();
+    if (!isUnlocked) {
+      // Soft semi-transparent interior fill
+      ctx.fillStyle = hexToRgba(hexColor, 0.22);
+      ctx.fillRect(x, 0, w, height);
 
+      // Dark horizontal slits inside
+      ctx.fillStyle = '#08090e';
+      for (let y = 15; y < height; y += 30) {
+        ctx.fillRect(x + 4, y, w - 8, 10);
+      }
+
+      // Crisp neon outer border
+      ctx.strokeStyle = hexColor;
+      ctx.shadowColor = hexColor;
+      ctx.shadowBlur = 14;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(x, 0, w, height);
+    } else {
+      ctx.strokeStyle = hexToRgba(hexColor, 0.2);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, 0, w, height);
+    }
+    ctx.restore();
+  }
+  
   // Continuously drive diegetic combo scale & max-sync vibration every frame
   function syncWorldComboAnimation() {
     const comboEl = CG.dom.comboEl;
@@ -331,15 +359,9 @@
         const echoYPos = obs.y - obs.offset;
         const leadYPos = obs.y + obs.offset;
 
-        if (!obs.unlocked) {
-          ctx.fillStyle = hexToRgba(cols.VILLAIN_SECONDARY, 0.24);
-          ctx.strokeStyle = cols.VILLAIN_SECONDARY;
-          ctx.shadowColor = cols.VILLAIN_SECONDARY;
-          ctx.shadowBlur = 18;
-          ctx.lineWidth = 3;
-          ctx.fillRect(obs.gateX, 0, obs.gateW, height);
-          ctx.strokeRect(obs.gateX, 0, obs.gateW, height);
+        drawShatterWall(obs.gateX, obs.gateW, height, cols.VILLAIN_SECONDARY, obs.unlocked);
 
+        if (!obs.unlocked) {
           if (!obs.echoHit) {
             ctx.beginPath();
             ctx.arc(obs.gateX, echoYPos, 4, 0, Math.PI * 2);
@@ -366,12 +388,7 @@
             ctx.fill();
             ctx.stroke();
           });
-        } else {
-          ctx.strokeStyle = hexToRgba(cols.VILLAIN_SECONDARY, 0.2);
-          ctx.lineWidth = 2;
-          ctx.strokeRect(obs.gateX, 0, obs.gateW, height);
         }
-
       } else if (obs.kind === 'trail_missile') {
         const isLockedPhase = obs.state === 'locking';
         const lockProgress = isLockedPhase ? (1 - obs.lockTimer / Math.max(1, obs.maxLock)) : 1;
@@ -426,49 +443,10 @@
           drawHexKeyPad(obs.x, keyY, obs.padR, st.frame * 0.08 + k * 0.6, key.color, key.collected);
         }
 
-        if (isAttuned) {
-          ctx.fillStyle = getRosterRgba(obs.gateColor, 0.08);
-          ctx.strokeStyle = getRosterRgba(obs.gateColor, 0.42);
-          ctx.shadowColor = gateHex;
-          ctx.shadowBlur = 10;
-          ctx.lineWidth = 2;
-          ctx.setLineDash([8, 6]);
-          ctx.fillRect(obs.gateX, 0, obs.gateW, height);
-          ctx.strokeRect(obs.gateX, 0, obs.gateW, height);
-          ctx.setLineDash([]);
-        } else {
-          ctx.fillStyle = getRosterRgba(obs.gateColor, 0.34);
-          ctx.strokeStyle = gateHex;
-          ctx.shadowColor = gateHex;
-          ctx.shadowBlur = 22;
-          ctx.lineWidth = 3.5;
-          ctx.fillRect(obs.gateX, 0, obs.gateW, height);
-          ctx.strokeRect(obs.gateX, 0, obs.gateW, height);
-
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(obs.gateX + obs.gateW * 0.5, 0);
-          ctx.lineTo(obs.gateX + obs.gateW * 0.5, height);
-          ctx.stroke();
-        }
+        drawShatterWall(obs.gateX, obs.gateW, height, gateHex, isAttuned);
 
       } else if (obs.kind === 'locked_gate') {
-        if (!obs.unlocked) {
-          ctx.fillStyle = cols.VILLAIN_AMBER;
-          ctx.shadowColor = cols.VILLAIN_AMBER;
-          ctx.shadowBlur = 18;
-          ctx.fillRect(obs.x, 0, obs.w, height);
-
-          ctx.fillStyle = '#08090e';
-          for (let y = 15; y < height; y += 30) {
-            ctx.fillRect(obs.x + 4, y, obs.w - 8, 10);
-          }
-        } else {
-          ctx.strokeStyle = hexToRgba(cols.VILLAIN_AMBER, 0.2);
-          ctx.lineWidth = 2;
-          ctx.strokeRect(obs.x, 0, obs.w, height);
-        }
+        drawShatterWall(obs.x, obs.w, height, cols.VILLAIN_AMBER, obs.unlocked);
 
       } else if (obs.kind === 'special_diamond' && !obs.sliced) {
         drawPrizeDiamond(obs.x, obs.y, obs.r, st.frame * 0.14);
