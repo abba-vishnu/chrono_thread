@@ -117,7 +117,14 @@
   };
 
   CG.getEffectiveChain = function () {
-    return st.doubleChainFrames > 0 ? st.combo * 2 : st.combo;
+    let chain = st.combo;
+    if (st.isMaxLifeExcited) {
+      chain *= (cfg.MAX_LIFE_BAR_BONUS ?? 1);
+    }
+    if (st.doubleChainFrames > 0) {
+      chain *= 2;
+    }
+    return chain;
   };
 
   CG.isFullCombo = function () {
@@ -146,10 +153,10 @@
       st.doubleChainFrames > 0 ? cfg.COLORS.FEEDBACK_BOOST : cfg.COLORS.FEEDBACK_POSITIVE,
       true
     );
-	
-	if (st.showDebugText) {
-		CG.checkTierAnnouncement();
-	}
+
+    if (st.showDebugText) {
+      CG.checkTierAnnouncement();
+    }
     CG.updateUI();
   };
 
@@ -249,18 +256,16 @@
           st.replenishBarPoints = overchargeThreshold;
           if (!st.isMaxLifeExcited) {
             st.isMaxLifeExcited = true;
-            st.chainScore += cfg.MAX_LIFE_BAR_BONUS;
-            CG.addFloatingText(x, y - 26, `+${cfg.MAX_LIFE_BAR_BONUS} OVERCHARGE`, cfg.COLORS.VILLAIN_AMBER);
+            CG.addFloatingText(x, y - 26, `${cfg.MAX_LIFE_BAR_BONUS}X OVERCHARGE`, cfg.COLORS.VILLAIN_AMBER);
           }
         }
       }
     } else {
       const overchargeThreshold = Math.max(1, cfg.MAX_LIFE_BONUS_BAR_MAX);
       st.replenishBarPoints = Math.min(overchargeThreshold, st.replenishBarPoints + amount);
-      if (st.replenishBarPoints >= overchargeThreshold) {
-        st.chainScore += cfg.MAX_LIFE_BAR_BONUS;
+      if (st.replenishBarPoints >= overchargeThreshold && !st.isMaxLifeExcited) {
         st.isMaxLifeExcited = true;
-        CG.addFloatingText(x, y - 26, `+${cfg.MAX_LIFE_BAR_BONUS} OVERCHARGE`, cfg.COLORS.VILLAIN_AMBER);
+        CG.addFloatingText(x, y - 26, `${cfg.MAX_LIFE_BAR_BONUS}X OVERCHARGE`, cfg.COLORS.VILLAIN_AMBER);
       }
     }
     CG.updateUI();
@@ -332,7 +337,7 @@
       st.echoStamina = cfg.STAMINA_MAX;
       st.staminaLockoutFrames = 0;
     }
-	
+
     if (st.staminaLockoutFrames > 0) {
       st.staminaLockoutFrames--;
       if (st.staminaLockoutFrames === 0) {
@@ -734,11 +739,15 @@
             if (st.combo > 1) {
               CG.addFloatingText(player.echoX, player.echoY - 16, 'SYNC LOST!', cols.FEEDBACK_ALERT);
             }
-            // Reset sync combo, apply a -1 penalty to orb progress, and exit overcharge if no longer full
             st.combo = 1;
             st.comboPopFrames = 0;
-            st.replenishBarPoints = Math.max(0, st.replenishBarPoints - 1);
-            if (st.replenishBarPoints < cfg.MAX_LIFE_BONUS_BAR_MAX) {
+
+            if (st.lives < cfg.MAX_LIVES) {
+              // Regular life bar: only lose 1 point of progress
+              st.replenishBarPoints = Math.max(0, st.replenishBarPoints - 1);
+            } else {
+              // Max-life overcharge bar: reset special counter and bonus completely
+              st.replenishBarPoints = 0;
               st.isMaxLifeExcited = false;
             }
             CG.updateUI();

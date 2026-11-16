@@ -148,7 +148,7 @@
     if (effectiveChain <= 1) return;
 
     const popBoost = st.comboPopFrames > 0 ? (st.comboPopFrames / 14) * 0.22 : 0;
-    const isMaxed = CG.isFullCombo();
+    const isMaxed = effectiveChain >= cfg.MAX_COMBO;
 
     if (isMaxed && !st.gameOver && !st.isPaused) {
       const shiverX = (Math.random() - 0.5) * 4.4;
@@ -600,14 +600,6 @@
     // Echo Orb (anchored at the tail end of the curved trail)
     if (merge < 0.98) {
       ctx.save();
-      //const echoDistMoved = Math.hypot(player.echoX - st.previousEcho.x, echoY - st.previousEcho.y);
-      //if (echoDistMoved > 2.5) {
-      // ctx.fillStyle = hexToRgba(unifiedCoreColor, 0.35 * (1 - merge));
-      //  ctx.beginPath();
-      //  ctx.arc(st.previousEcho.x, st.previousEcho.y, player.radiusEcho * 0.85 * (1 - merge * 0.5), 0, Math.PI * 2);
-      //  ctx.fill();
-      //}
-
       ctx.fillStyle = unifiedCoreColor;
       ctx.globalAlpha = Math.max(0, 1 - merge * 0.95);
       ctx.shadowColor = unifiedCoreColor;
@@ -622,7 +614,7 @@
 
     // Independent Configurable Long Surge Trail for Main Orb (Lead Core)
     const targetGrow = isSurging ? 1 : 0;
-    const growSpeed = isSurging ? 0.08 : 0.14; // Lower = slower, more visible telescoping (0.08 ≈ 0.4s)
+    const growSpeed = isSurging ? 0.08 : 0.14;
     st.surgeTrailGrow = (st.surgeTrailGrow || 0) + (targetGrow - (st.surgeTrailGrow || 0)) * growSpeed;
     if (st.surgeTrailGrow < 0.01) st.surgeTrailGrow = 0;
     if (st.surgeTrailGrow > 0.995) st.surgeTrailGrow = 1;
@@ -630,18 +622,15 @@
     if (st.surgeTrailGrow > 0) {
       ctx.save();
 
-      // --- LIVE CONFIG KNOBS ---
       const maxTrailLength   = cfg.SURGE_TRAIL_LENGTH ?? 120;
-      const surgeTrailLength = maxTrailLength * st.surgeTrailGrow; // Telescopes from 0px -> maxTrailLength
+      const surgeTrailLength = maxTrailLength * st.surgeTrailGrow;
       const surgeDotCount    = Math.max(2, Math.round(cfg.SURGE_TRAIL_DOT_COUNT ?? 32));
       const surgeStartScale  = cfg.SURGE_TRAIL_START_SCALE ?? 0.95;
       const surgeEndScale    = cfg.SURGE_TRAIL_END_SCALE ?? 0.15;
       const surgeMaxAlpha    = (cfg.SURGE_TRAIL_MAX_ALPHA ?? 0.7) * Math.min(1, st.surgeTrailGrow * 2.5);
-      // -------------------------
 
       const maxSamples = Math.max(2, Math.round(cfg.SURGE_TRAIL_HISTORY ?? 20));
 
-      // Seed buffer with current leadY on first frame so the trail emerges smoothly out of the orb
       if (!player.surgeWakeY || player.surgeWakeY.length === 0) {
         player.surgeWakeY = Array(maxSamples).fill(leadY);
       } else if (!st.isPaused && !st.gameOver) {
@@ -654,10 +643,9 @@
       const wakeLen = player.surgeWakeY.length;
       if (wakeLen > 1) {
         for (let i = surgeDotCount - 1; i >= 1; i--) {
-          const t = i / (surgeDotCount - 1); // 0 = Main Orb, 1 = Far Tail Tip
+          const t = i / (surgeDotCount - 1);
           const fade = 1 - t;
 
-          // Only sample the portion of Y-history matching the currently grown length
           const activeHistSpan = (wakeLen - 1) * st.surgeTrailGrow;
           const histOffset = t * activeHistSpan;
           const idxFromEnd = (wakeLen - 1) - histOffset;

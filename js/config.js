@@ -1,7 +1,7 @@
 window.ChronoGame = window.ChronoGame || {};
 
 (function (CG) {
-  CG.STORAGE_KEY = 'chrono_thread_engine_config_v6';
+  CG.STORAGE_KEY = 'chrono_thread_engine_config_v7';
   CG.BEST_WALLS_KEY = 'chrono_thread_best_walls_v1';
 
   CG.DEFAULT_GAME_CONFIG = {
@@ -22,7 +22,7 @@ window.ChronoGame = window.ChronoGame || {};
     TELEGRAPH_FRAMES: 32,
     WHITE_ORB_MIN_COUNT: 0,
     WHITE_ORB_MAX_COUNT: 1,
-	WHITE_ORB_WALL_CLEARANCE: 135,
+    WHITE_ORB_WALL_CLEARANCE: 135,
 
     // Global Oscillation Parents
     GLOBAL_OSC_SPEED: 0.75,
@@ -38,7 +38,7 @@ window.ChronoGame = window.ChronoGame || {};
     DIAMOND_MAX_INTERVAL: 40,
     DIAMOND_DOUBLE_CHAIN_SECONDS: 5,
     POINTS_PER_OBSTACLE: 1,
-    MAX_LIFE_BAR_BONUS: 50,
+    MAX_LIFE_BAR_BONUS: 2,
     MAX_COMBO: 10,
 
     // Lead Core, Echo Twin, Phase Tether & Surge
@@ -46,8 +46,8 @@ window.ChronoGame = window.ChronoGame || {};
     GRAVITY_UP: 0.6,
     GRAVITY_DOWN: 0.6,
     VELOCITY_DAMPING: 0.93,
-    
-	PARENT_RADIUS: 12,
+
+    PARENT_RADIUS: 12,
     TETHER_HORIZONTAL_GAP: 40,
     ECHO_DELAY_FRAMES: 4,
     ECHO_RETURN_BLEND: 0.16,
@@ -55,19 +55,17 @@ window.ChronoGame = window.ChronoGame || {};
     ECHO_RADIUS: 10,
     SWEEP_HARVEST_RADIUS: 12,
     BOOST_GRAVITY_MULTIPLIER: 1.75,
-    
-	STAMINA_MAX: 100,
+
+    STAMINA_MAX: 100,
     STAMINA_DRAIN_RATE: 0.85,
     STAMINA_RECOVERY_RATE: 0.5,
     STAMINA_LOCKOUT_SECONDS: 2.2,
-	STAMINA_RECOVERY_RATE: 0.5,
-    STAMINA_LOCKOUT_SECONDS: 2.2,
-    
-	SURGE_SNAP_IN_RATE: 0.1,
+
+    SURGE_SNAP_IN_RATE: 0.1,
     SURGE_SNAP_OUT_RATE: 0.1,
 
-	SURGE_TRAIL_LENGTH: 40,
-	SURGE_TRAIL_HISTORY: 10,
+    SURGE_TRAIL_LENGTH: 40,
+    SURGE_TRAIL_HISTORY: 10,
     SURGE_TRAIL_DOT_COUNT: 24,
     SURGE_TRAIL_START_SCALE: 1,
     SURGE_TRAIL_END_SCALE: 1,
