@@ -27,6 +27,8 @@ window.ChronoGame = window.ChronoGame || {};
     // Global Oscillation Parents
     GLOBAL_OSC_SPEED: 0.75,
     GLOBAL_OSC_AMP: 68,
+    OSC_MIN_SPEED_RATIO: 0.65,
+    OSC_MIN_AMP_RATIO: 0.45,
     STAGGERED_PHASE_DELAY: 0.01,
 
     // Lives Gauge, Scoring & Sync Combos
@@ -87,11 +89,12 @@ window.ChronoGame = window.ChronoGame || {};
     PINK_WALL_OSC_SPEED_MULT: 1.0,
     PINK_WALL_OSC_AMP_MULT: 1.0,
 
-    GATE_NODE_DIST: 140,
+    GATE_NODE_DIST: 80,
     GATE_NODE_OSC_SPEED_MULT: 1.0,
     GATE_NODE_OSC_AMP_MULT: 1.0,
 
-    MAIL_SLOT_GAP: 92,
+    MAIL_SLOT_GAP: 120,
+	MAIL_SLOT_WIDTH: 140,
     MAIL_SLOT_OSC_SPEED_MULT: 0.5,
     MAIL_SLOT_OSC_AMP_MULT: 0.5,
 
@@ -103,7 +106,7 @@ window.ChronoGame = window.ChronoGame || {};
     DUAL_RECT_WIDTH: 20,
     DUAL_RECT_HEIGHT: 80,
     DUAL_RECT_X_GAP: 80,
-    DUAL_RECT_GATE_DIST: 60,
+    DUAL_RECT_GATE_DIST: 80,
     DUAL_MIN_OFFSET: 10,
     DUAL_MAX_OFFSET: 40,
     DUAL_RECT_OSC_SPEED_MULT: 1.0,
@@ -112,7 +115,8 @@ window.ChronoGame = window.ChronoGame || {};
     STAGGERED_MIN_DIST: 100,
     STAGGERED_MAX_DIST: 150,
     STAGGERED_STEP_GAP: 145,
-    STAGGERED_STEP_OFFSET: 100,
+    STAGGERED_MIN_OFFSET: 60,
+    STAGGERED_MAX_OFFSET: 140,
     STAGGERED_PHASE_DELAY: 0,
     STAGGERED_OSC_SPEED_MULT: 1.0,
     STAGGERED_OSC_AMP_MULT: 1.0,

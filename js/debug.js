@@ -26,8 +26,10 @@
         { target: cfg, key: 'WHITE_ORB_MIN_COUNT', label: 'WHITE_ORB_MIN_COUNT', desc: 'Minimum white Spark orbs spawned in recovery corridors.', min: 0, max: 5, step: 1, integer: true },
         { target: cfg, key: 'WHITE_ORB_MAX_COUNT', label: 'WHITE_ORB_MAX_COUNT', desc: 'Maximum white Spark orbs spawned in recovery corridors.', min: 0, max: 6, step: 1, integer: true },
         { target: cfg, key: 'WHITE_ORB_WALL_CLEARANCE', label: 'WHITE_ORB_WALL_CLEARANCE', desc: 'Minimum horizontal distance in pixels between white orbs and walls.', min: 50, max: 260, step: 5, integer: true, suffix: 'px' },
-        { target: cfg, key: 'GLOBAL_OSC_SPEED', label: 'GLOBAL_OSC_SPEED (PARENT)', desc: 'Master oscillation frequency multiplier for all villains.', min: 0.1, max: 2.5, step: 0.05 },
-        { target: cfg, key: 'GLOBAL_OSC_AMP', label: 'GLOBAL_OSC_AMP (PARENT)', desc: 'Master vertical oscillation amplitude in pixels for all villains.', min: 10, max: 150, step: 2, suffix: 'px' }
+        { target: cfg, key: 'GLOBAL_OSC_SPEED', label: 'GLOBAL_OSC_SPEED (PARENT)', desc: 'Max oscillation frequency multiplier for all villains.', min: 0.1, max: 2.5, step: 0.05 },
+        { target: cfg, key: 'GLOBAL_OSC_AMP', label: 'GLOBAL_OSC_AMP (PARENT)', desc: 'Max vertical oscillation amplitude in pixels for all villains.', min: 10, max: 150, step: 2, suffix: 'px' },
+        { target: cfg, key: 'OSC_MIN_SPEED_RATIO', label: 'OSC_MIN_SPEED_RATIO', desc: 'Minimum random oscillation speed floor (ratio of max).', min: 0.1, max: 1.0, step: 0.05, suffix: 'x' },
+        { target: cfg, key: 'OSC_MIN_AMP_RATIO', label: 'OSC_MIN_AMP_RATIO', desc: 'Minimum random oscillation amplitude floor (ratio of max).', min: 0.1, max: 1.0, step: 0.05, suffix: 'x' }
       ]
     },
     {
@@ -55,6 +57,7 @@
       enemyTag: 'mail_slot',
       items: [
         { target: cfg, key: 'MAIL_SLOT_GAP', label: 'MAIL_SLOT_GAP', min: 56, max: 150, step: 2, suffix: 'px' },
+        { target: cfg, key: 'MAIL_SLOT_WIDTH', label: 'MAIL_SLOT_WIDTH', min: 30, max: 260, step: 2, suffix: 'px' },
         { target: cfg, key: 'MAIL_SLOT_OSC_SPEED_MULT', label: 'OSC_SPEED_MULT', min: 0.1, max: 2.5, step: 0.05, suffix: 'x' },
         { target: cfg, key: 'MAIL_SLOT_OSC_AMP_MULT', label: 'OSC_AMP_MULT', min: 0.1, max: 2.5, step: 0.05, suffix: 'x' },
         { target: cfg, key: 'SPAWN_WEIGHT_MAIL_SLOT', label: 'SPAWN_WEIGHT', min: 0, max: 50, step: 1, integer: true }
@@ -93,7 +96,8 @@
         { target: cfg, key: 'STAGGERED_MIN_DIST', label: 'STAGGERED_MIN_DIST', min: 30, max: 140, step: 2, suffix: 'px' },
         { target: cfg, key: 'STAGGERED_MAX_DIST', label: 'STAGGERED_MAX_DIST', min: 80, max: 240, step: 2, suffix: 'px' },
         { target: cfg, key: 'STAGGERED_STEP_GAP', label: 'STAGGERED_STEP_GAP', min: 80, max: 220, step: 5, suffix: 'px' },
-        { target: cfg, key: 'STAGGERED_STEP_OFFSET', label: 'STAGGERED_STEP_OFFSET', min: 40, max: 200, step: 5, suffix: 'px' },
+        { target: cfg, key: 'STAGGERED_MIN_OFFSET', label: 'STAGGERED_MIN_OFFSET', min: 20, max: 160, step: 5, suffix: 'px' },
+        { target: cfg, key: 'STAGGERED_MAX_OFFSET', label: 'STAGGERED_MAX_OFFSET', min: 40, max: 240, step: 5, suffix: 'px' },
         { target: cfg, key: 'STAGGERED_PHASE_DELAY', label: 'STAGGERED_PHASE_DELAY', min: 0, max: 1, step: 0.02, suffix: 'rad' },
         { target: cfg, key: 'STAGGERED_OSC_SPEED_MULT', label: 'OSC_SPEED_MULT', min: 0.1, max: 2.5, step: 0.05, suffix: 'x' },
         { target: cfg, key: 'STAGGERED_OSC_AMP_MULT', label: 'OSC_AMP_MULT', min: 0.1, max: 2.5, step: 0.05, suffix: 'x' },
@@ -830,6 +834,8 @@
               }
             } else if (obs.kind === 'trail_missile') {
               obs.r = cfg.MISSILE_RADIUS;
+            } else if (obs.kind === 'mail_slot') {
+              obs.w = cfg.MAIL_SLOT_WIDTH;
             }
           });
 

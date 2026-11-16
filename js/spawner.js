@@ -385,7 +385,9 @@
       tel = { type: 'dual_target_gate', motionState, y: clampTelYForVillain('dual_target_gate', motionState, rawY), color: cols.VILLAIN_SECONDARY, timer: cfg.TELEGRAPH_FRAMES };
     } else if (chosen === 'staggered_step') {
       const goUp = Math.random() > 0.5;
-      const offset = cfg.STAGGERED_STEP_OFFSET;
+      const minOff = Math.min(cfg.STAGGERED_MIN_OFFSET, cfg.STAGGERED_MAX_OFFSET);
+      const maxOff = Math.max(cfg.STAGGERED_MIN_OFFSET, cfg.STAGGERED_MAX_OFFSET);
+      const offset = minOff + Math.random() * Math.max(0, maxOff - minOff);
       const parentAmp = cfg.GLOBAL_OSC_AMP ?? 68;
       const oscAmp = motionState === 'oscillating' ? parentAmp * (cfg.STAGGERED_OSC_AMP_MULT ?? 1) : 0;
       const safeMargin = cfg.STAGGERED_STEP_GAP * 0.5 + oscAmp * 0.5 + 34;
@@ -424,6 +426,10 @@
     const height = st.height;
     const motionState = tel.motionState || 'static';
     const startPhase = Math.random() * Math.PI * 2;
+    const minSpeedRatio = Math.max(0.1, Math.min(1, cfg.OSC_MIN_SPEED_RATIO ?? 0.65));
+    const minAmpRatio = Math.max(0.1, Math.min(1, cfg.OSC_MIN_AMP_RATIO ?? 0.45));
+    const randOscSpeedScale = minSpeedRatio + Math.random() * (1 - minSpeedRatio);
+    const randOscAmpScale = minAmpRatio + Math.random() * (1 - minAmpRatio);
     const orbClearance = cfg.WHITE_ORB_WALL_CLEARANCE ?? 100;
     let exitOrbX = null;
     let exitOrbY = tel.y;
@@ -443,6 +449,8 @@
         y: nodeY,
         spawnY: nodeY,
         phase: startPhase,
+        oscSpeedScale: randOscSpeedScale,
+        oscAmpScale: randOscAmpScale,
         targetX: gateX,
         r: 15,
         sliced: false,
@@ -469,6 +477,8 @@
         w: 24,
         spawnY: gapCenter,
         phase: startPhase,
+        oscSpeedScale: randOscSpeedScale,
+        oscAmpScale: randOscAmpScale,
         gapSize,
         gapTop: gapCenter - gapSize / 2,
         gapBottom: gapCenter + gapSize / 2,
@@ -480,7 +490,7 @@
     } else if (tel.type === 'mail_slot') {
       const slotCenter = tel.y;
       const gapSize = cfg.MAIL_SLOT_GAP;
-      const tunnelWidth = 96;
+      const tunnelWidth = cfg.MAIL_SLOT_WIDTH ?? 96;
       st.obstacles.push({
         kind: 'mail_slot',
         motionState,
@@ -488,6 +498,8 @@
         w: tunnelWidth,
         spawnY: slotCenter,
         phase: startPhase,
+        oscSpeedScale: randOscSpeedScale,
+        oscAmpScale: randOscAmpScale,
         gapSize,
         gapTop: slotCenter - gapSize / 2,
         gapBottom: slotCenter + gapSize / 2,
@@ -509,6 +521,8 @@
         w: 26,
         spawnY: center,
         phase: startPhase,
+        oscSpeedScale: randOscSpeedScale,
+        oscAmpScale: randOscAmpScale,
         gapSize,
         dividerH,
         dividerTop,
@@ -547,6 +561,8 @@
         y: tel.y,
         spawnY: tel.y,
         phase: startPhase,
+        oscSpeedScale: randOscSpeedScale,
+        oscAmpScale: randOscAmpScale,
         w: cfg.DUAL_RECT_WIDTH,
         h: cfg.DUAL_RECT_HEIGHT,
         offset: currentOffset,
@@ -576,6 +592,8 @@
         w: 22,
         spawnY: (tel.y + tel.y2) * 0.5,
         phase: startPhase,
+        oscSpeedScale: randOscSpeedScale,
+        oscAmpScale: randOscAmpScale,
         gapSize,
         frontBaseY: tel.y,
         rearBaseY: tel.y2,
@@ -596,6 +614,8 @@
         y: st.player.y,
         spawnY: st.player.y,
         phase: 0,
+        oscSpeedScale: randOscSpeedScale,
+        oscAmpScale: randOscAmpScale,
         r: cfg.MISSILE_RADIUS,
         lockTimer: cfg.MISSILE_LOCK_FRAMES,
         maxLock: cfg.MISSILE_LOCK_FRAMES,
@@ -658,6 +678,8 @@
         spawnY: clampedSpawnY,
         currentCenterY: clampedSpawnY,
         phase: startPhase,
+        oscSpeedScale: randOscSpeedScale,
+        oscAmpScale: randOscAmpScale,
         padR,
         columnHalfHeight,
         keys,

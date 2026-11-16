@@ -13,15 +13,15 @@
     echo_pad_gate: { speedMult: 'ECHO_PAD_OSC_SPEED_MULT', ampMult: 'ECHO_PAD_OSC_AMP_MULT' }
   };
 
-  function getOscParams(kind) {
-    const entry = OSC_MULT_MAP[kind];
+  function getOscParams(obs) {
+    const entry = OSC_MULT_MAP[obs.kind];
     const parentSpeed = cfg.GLOBAL_OSC_SPEED ?? 0.75;
     const parentAmp = cfg.GLOBAL_OSC_AMP ?? 68;
     const sMult = (entry && cfg[entry.speedMult] !== undefined) ? cfg[entry.speedMult] : 1.0;
     const aMult = (entry && cfg[entry.ampMult] !== undefined) ? cfg[entry.ampMult] : 1.0;
     return {
-      speed: parentSpeed * sMult,
-      amp: parentAmp * aMult
+      speed: parentSpeed * sMult * (obs.oscSpeedScale ?? 1.0),
+      amp: parentAmp * aMult * (obs.oscAmpScale ?? 1.0)
     };
   }
 
@@ -273,7 +273,7 @@
 
   function computeOscillationOffset(obs, minBound, maxBound) {
     if (obs.motionState !== 'oscillating') return 0;
-    const { speed, amp } = getOscParams(obs.kind);
+    const { speed, amp } = getOscParams(obs);
     obs.phase += 0.032 * speed;
     const rawOffset = Math.sin(obs.phase) * amp;
     const base = obs.spawnY;
@@ -441,7 +441,7 @@
         } else {
           obs.x -= cfg.MISSILE_SPEED;
           if (obs.motionState === 'oscillating') {
-            const { speed, amp } = getOscParams('trail_missile');
+            const { speed, amp } = getOscParams(obs);
             obs.phase += 0.045 * speed;
             const clampedAmp = Math.min(amp, height * 0.35);
             obs.y = Math.max(36, Math.min(height - 36, obs.spawnY + Math.sin(obs.phase) * clampedAmp));
@@ -519,7 +519,7 @@
           const halfGap = obs.gapSize * 0.5;
           const minBound = halfGap + 30;
           const maxBound = height - halfGap - 30;
-          const { speed, amp } = getOscParams('staggered_step');
+          const { speed, amp } = getOscParams(obs);
 
           obs.phase += 0.032 * speed;
           const phaseDelay = cfg.STAGGERED_PHASE_DELAY ?? 0;
