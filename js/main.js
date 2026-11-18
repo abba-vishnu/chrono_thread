@@ -174,6 +174,6 @@
   window.addEventListener('resize', CG.resize);
   CG.resize();
   CG.bindInputs();
-  CG.resetGame();
+  CG.initStartMenu();
   loop();
 })(window.ChronoGame);

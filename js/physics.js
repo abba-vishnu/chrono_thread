@@ -282,7 +282,21 @@
   }
 
   CG.updatePhysics = function () {
-    if (st.gameOver || st.isPaused) return;
+    if (st.isPaused) return;
+
+    if (st.gameState === 'MENU') {
+      st.frame++;
+      // Gentle sine-wave idle hover loop for character on start screen
+      const player = st.player;
+      player.y = (st.height / 2) + Math.sin(st.frame * 0.05) * 12;
+      player.leadX = Math.max(24, Math.min(st.width - 24, cfg.PLAYER_LEAD_X));
+      const unmergedEchoX = player.leadX - cfg.TETHER_HORIZONTAL_GAP;
+      player.echoX = unmergedEchoX;
+      player.echoY = player.y + Math.cos(st.frame * 0.05) * 6;
+      return;
+    }
+
+    if (st.gameOver) return;
 
     const player = st.player;
     const height = st.height;

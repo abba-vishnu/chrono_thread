@@ -42,19 +42,78 @@
     return st.gameOver && (performance.now() - st.gameOverTimestamp > 420);
   }
 
+  CG.initStartMenu = function () {
+    st.gameState = 'MENU';
+    if (dom.startOverlay) {
+      dom.startOverlay.classList.remove('hidden');
+      dom.startOverlay.setAttribute('aria-hidden', 'false');
+    }
+    if (dom.ui) dom.ui.classList.add('hidden');
+    if (dom.snapBtn) dom.snapBtn.classList.add('hidden');
+
+    if (dom.menuBestWallsEl) {
+      dom.menuBestWallsEl.textContent = String(st.bestWallsCleared);
+    }
+
+    // Detect device for controls hint
+    const isTouch = window.matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
+    if (dom.controlsHintEl) {
+      if (isTouch) {
+        dom.controlsHintEl.innerHTML = `<span>TAP SCREEN</span> to Jump<br><span>SURGE BUTTON</span> for Boost`;
+      } else {
+        dom.controlsHintEl.innerHTML = `<span>SPACE / W</span> to Jump<br><span>CLICK / SHIFT</span> for Boost`;
+      }
+    }
+  };
+
+  CG.startGame = function () {
+    st.gameState = 'PLAYING';
+    if (dom.startOverlay) {
+      dom.startOverlay.classList.add('hidden');
+      dom.startOverlay.setAttribute('aria-hidden', 'true');
+    }
+    if (dom.ui) {
+      dom.ui.classList.remove('hidden');
+      dom.ui.style.display = 'flex'; // Force display back on
+    }
+    if (dom.snapBtn) {
+      dom.snapBtn.classList.remove('hidden');
+      dom.snapBtn.style.display = 'flex'; // Force display back on
+    }
+    CG.resetGame();
+  };
+
   CG.bindInputs = function () {
+    if (dom.startBtn) {
+      dom.startBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        CG.startGame();
+      });
+      dom.startBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        CG.startGame();
+      });
+    }
+
     window.addEventListener('keydown', (e) => {
       if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
       if (st.isPaused) return;
 
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
         e.preventDefault();
+        if (st.gameState === 'MENU') {
+          CG.startGame();
+          return;
+        }
         if (st.gameOver) {
           if (canDismissGameOver()) CG.resetGame();
           return;
         }
         primaryKeyHeld = true;
       }
+	  
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'ArrowLeft' || e.code === 'KeyA') {
         e.preventDefault();
         if (!st.gameOver) {

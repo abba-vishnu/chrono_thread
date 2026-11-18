@@ -10,6 +10,7 @@
     gameStage: document.getElementById('game-stage'),
     canvas: document.getElementById('game'),
     ctx: document.getElementById('game').getContext('2d'),
+	ui: document.getElementById('ui'),
     scoreEl: document.getElementById('score'),
     comboEl: document.getElementById('combo'),
     livesEl: document.getElementById('lives'),
@@ -20,7 +21,11 @@
     goScoreEl: document.getElementById('go-score'),
     goBestWallsEl: document.getElementById('go-best-walls'),
     goBestBadgeEl: document.getElementById('go-best-badge'),
-    restartBtn: document.getElementById('restart-btn')
+    restartBtn: document.getElementById('restart-btn'),
+	startOverlay: document.getElementById('start-overlay'),
+    startBtn: document.getElementById('start-btn'),
+    menuBestWallsEl: document.getElementById('menu-best-walls'),
+    controlsHintEl: document.getElementById('controls-hint')
   };
 
   CG.state = {

@@ -10,7 +10,32 @@
 </head>
 <body>
 <div id="game-stage">
-  <div id="ui">
+  <!-- START MENU OVERLAY -->
+  <div id="start-overlay" aria-hidden="false">
+    <div class="menu-card">
+      <h1 class="menu-title">CHRONO THREAD</h1>
+	  <div class="menu-stats-box">
+		<div class="menu-tag">
+			Keep your dual quantum leads in sync
+		</div>
+		<div class="menu-subtitle">	
+			Dodge shifting temporal barriers and harness energy surges to weave through the timeline	
+		</div>
+	  </div>
+      <div class="menu-stats-box">
+        <div class="sub-stat-label">BEST WALLS</div>
+        <div id="menu-best-walls" class="sub-stat-value">0</div>
+      </div>
+
+      <div id="controls-hint" class="controls-hint-box">
+        <!-- Injected dynamically via input.js based on device -->
+      </div>
+
+      <button id="start-btn" type="button">PLAY GAME</button>
+    </div>
+  </div>
+
+  <div id="ui" class="hidden">
     <div id="score-row">
       <div id="score">0</div>
     </div>
